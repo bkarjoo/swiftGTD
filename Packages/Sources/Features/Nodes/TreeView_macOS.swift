@@ -38,12 +38,6 @@ public struct TreeView_macOS: View {
                 }
                 
                 // Main content
-                // Wrapping in background to prevent focus ring
-                Color.clear
-                    .focusable()
-                    .focused($isTreeFocused)
-                    .allowsHitTesting(false)
-                    .overlay(
                 ScrollViewReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 0) {
@@ -74,8 +68,16 @@ public struct TreeView_macOS: View {
                         }
                     }
                 }
-                    )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.controlBackgroundColor))
+                // Keep keyboard focus without a giant ring by focusing a tiny view
+                .background(alignment: .topLeading) {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .focusable()
+                        .focused($isTreeFocused)
+                        .accessibilityHidden(true)
+                }
                 .onTapGesture {
                     // Ensure focus when clicking on the tree view area
                     if !isTreeFocused {
