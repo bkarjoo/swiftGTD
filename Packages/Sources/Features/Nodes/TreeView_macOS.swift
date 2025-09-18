@@ -989,6 +989,7 @@ private struct KeyboardShortcutsHelpView: View {
 private struct CreateNodeSheet: View {
     @ObservedObject var viewModel: TreeViewModel
     @Environment(\.dismiss) var dismiss
+    @FocusState private var isTitleFocused: Bool
     
     private var createNodeTypeTitle: String {
         switch viewModel.createNodeType {
@@ -1002,41 +1003,44 @@ private struct CreateNodeSheet: View {
     }
     
     var body: some View {
-        NavigationView {
-            Form {
-                Section("New \(createNodeTypeTitle)") {
-                    TextField("Title", text: $viewModel.createNodeTitle)
-                }
-                
-                if let focusedNode = viewModel.currentFocusedNode {
-                    Section {
-                        Label("Creating under: \(focusedNode.title)", systemImage: "folder")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .navigationTitle("Create \(createNodeTypeTitle)")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+        // Compact sheet: single row with TextField on left and buttons on right
+        HStack(spacing: 8) {
+            TextField("", text: $viewModel.createNodeTitle)
+                .textFieldStyle(.roundedBorder)
+                .focused($isTitleFocused)
+                .onSubmit {
+                    Task {
+                        await viewModel.createNode(
+                            type: viewModel.createNodeType,
+                            title: viewModel.createNodeTitle,
+                            parentId: viewModel.focusedNodeId
+                        )
                         dismiss()
                     }
                 }
-                
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Create") {
-                        Task {
-                            await viewModel.createNode(
-                                type: viewModel.createNodeType,
-                                title: viewModel.createNodeTitle,
-                                parentId: viewModel.focusedNodeId
-                            )
-                            dismiss()
-                        }
-                    }
-                    .disabled(viewModel.createNodeTitle.isEmpty)
+
+            Spacer(minLength: 8)
+
+            Button("Cancel") { dismiss() }
+
+            Button("Create") {
+                Task {
+                    await viewModel.createNode(
+                        type: viewModel.createNodeType,
+                        title: viewModel.createNodeTitle,
+                        parentId: viewModel.focusedNodeId
+                    )
+                    dismiss()
                 }
             }
+            .disabled(viewModel.createNodeTitle.isEmpty)
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(minWidth: 360, minHeight: 70)
+        .onAppear {
+            DispatchQueue.main.async { isTitleFocused = true }
         }
     }
 }
