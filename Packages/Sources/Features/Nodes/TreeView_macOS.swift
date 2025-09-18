@@ -38,20 +38,35 @@ public struct TreeView_macOS: View {
                 }
                 
                 // Main content
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if viewModel.isLoading {
-                            LoadingView()
-                                .padding()
-                        } else {
-                            TreeContent(
-                                viewModel: viewModel,
-                                fontSize: CGFloat(treeFontSize),
-                                lineSpacing: CGFloat(treeLineSpacing)
-                            )
+                ScrollViewReader { scrollProxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if viewModel.isLoading {
+                                LoadingView()
+                                    .padding()
+                            } else {
+                                TreeContent(
+                                    viewModel: viewModel,
+                                    fontSize: CGFloat(treeFontSize),
+                                    lineSpacing: CGFloat(treeLineSpacing)
+                                )
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .onChange(of: viewModel.selectedNodeId) { newNodeId in
+                        // Only scroll if we have a selected node
+                        guard let nodeId = newNodeId else { return }
+
+                        // Small delay to ensure view hierarchy is updated
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                // Simple approach: always ensure the node is visible
+                                // SwiftUI will only scroll if needed
+                                scrollProxy.scrollTo(nodeId, anchor: nil)
+                            }
                         }
                     }
-                    .padding(.vertical, 8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .focusable()
@@ -747,7 +762,7 @@ private struct TreeContent: View {
     @ObservedObject var viewModel: TreeViewModel
     let fontSize: CGFloat
     let lineSpacing: CGFloat
-    
+
     var body: some View {
         if let focusedId = viewModel.focusedNodeId,
            let focusedNode = viewModel.allNodes.first(where: { $0.id == focusedId }) {

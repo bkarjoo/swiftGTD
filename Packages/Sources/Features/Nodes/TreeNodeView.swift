@@ -82,6 +82,7 @@ public struct TreeNodeView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Create the main row content
             nodeRowContent
+                .id(node.id)  // Add ID for ScrollViewReader to find this node
                 .contentShape(Rectangle()) // Make entire row tappable
                 .contextMenu {
                     Button(action: {
