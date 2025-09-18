@@ -1,0 +1,25 @@
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "title": "Review quarterly report",
+  "node_type": "task",
+  "parent_id": "456e7890-e89b-12d3-a456-426614174000",
+  "owner_id": "0e212ca2-278d-4926-a24f-6f3b691eaf36",
+  "created_at": "2025-09-01T10:00:00.000000+00:00",
+  "updated_at": "2025-09-15T14:30:00.000000+00:00",
+  "sort_order": 1000,
+  "is_list": false,
+  "children_count": 0,
+  "tags": [],
+  "task_data": {
+    "description": "Review and provide feedback on Q3 quarterly report",
+    "status": "todo",
+    "priority": "high",
+    "due_at": "2025-09-20T17:00:00.000000+00:00",
+    "earliest_start_at": null,
+    "completed_at": null,
+    "archived": false
+  },
+  "note_data": null,
+  "template_data": null,
+  "smart_folder_data": null
+}

@@ -1,0 +1,616 @@
+import XCTest
+import Foundation
+@testable import Services
+@testable import Models
+@testable import Core
+@testable import Networking
+
+/// Mock API for testing offline queue processing
+class MockQueueAPIClient: APIClientProtocol {
+    var createFolderCalled = false
+    var createTaskCalled = false
+    var createNoteCalled = false
+    var deleteNodeCalled = false
+    var toggleTaskCalled = false
+    
+    var shouldFailCreate = false
+    var shouldFailDelete = false
+    var shouldFailToggle = false
+    
+    var createdNodes: [(title: String, parentId: String?)] = []
+    var deletedNodeIds: [String] = []
+    var toggledTasks: [(nodeId: String, completed: Bool)] = []
+    
+    func setAuthToken(_ token: String?) {}
+    
+    func getCurrentUser() async throws -> User {
+        throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
+    }
+    
+    func getNodes(parentId: String?) async throws -> [Node] {
+        return []
+    }
+    
+    func getAllNodes() async throws -> [Node] {
+        return []
+    }
+    
+    func getNode(id: String) async throws -> Node {
+        throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
+    }
+    
+    func createNode(_ node: Node) async throws -> Node {
+        if shouldFailCreate {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
+        }
+        return Node(
+            id: "server-\(node.id)",
+            title: node.title,
+            nodeType: node.nodeType,
+            parentId: node.parentId,
+            sortOrder: node.sortOrder,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+    
+    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+        throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
+    }
+    
+    func deleteNode(id: String) async throws {
+        if shouldFailDelete {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Delete failed"])
+        }
+        deleteNodeCalled = true
+        deletedNodeIds.append(id)
+    }
+    
+    func getTags() async throws -> [Tag] {
+        return []
+    }
+    
+    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+        if shouldFailToggle {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Toggle failed"])
+        }
+        toggleTaskCalled = true
+        toggledTasks.append((nodeId: nodeId, completed: !currentlyCompleted))
+        return Node(
+            id: nodeId,
+            title: "Toggled Task",
+            nodeType: "task",
+            parentId: nil,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date(),
+            taskData: TaskData(status: currentlyCompleted ? "todo" : "done")
+        )
+    }
+    
+    func createFolder(title: String, parentId: String?) async throws -> Node {
+        if shouldFailCreate {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
+        }
+        createFolderCalled = true
+        createdNodes.append((title: title, parentId: parentId))
+        return Node(
+            id: "server-folder-\(UUID().uuidString)",
+            title: title,
+            nodeType: "folder",
+            parentId: parentId,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+    
+    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+        if shouldFailCreate {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
+        }
+        createTaskCalled = true
+        createdNodes.append((title: title, parentId: parentId))
+        return Node(
+            id: "server-task-\(UUID().uuidString)",
+            title: title,
+            nodeType: "task",
+            parentId: parentId,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date(),
+            taskData: TaskData(description: description, status: "todo")
+        )
+    }
+    
+    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+        if shouldFailCreate {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
+        }
+        createNoteCalled = true
+        createdNodes.append((title: title, parentId: parentId))
+        return Node(
+            id: "server-note-\(UUID().uuidString)",
+            title: title,
+            nodeType: "note",
+            parentId: parentId,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date(),
+            noteData: NoteData(body: body)
+        )
+    }
+    
+    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+        if shouldFailCreate {
+            throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
+        }
+        createdNodes.append((title: title, parentId: parentId))
+        return Node(
+            id: "server-generic-\(UUID().uuidString)",
+            title: title,
+            nodeType: nodeType,
+            parentId: parentId,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+}
+
+/// Testable version of OfflineQueueManager with injectable API
+@MainActor
+class TestableOfflineQueueManager {
+    var pendingOperations: [OfflineQueueManager.QueuedOperation] = []
+    var isSyncing = false
+    var mockAPI: APIClientProtocol?
+    
+    func clearQueue() async {
+        pendingOperations.removeAll()
+    }
+    
+    func queueCreate(node: Node) async {
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let nodeData = try encoder.encode(node)
+            
+            let operation = OfflineQueueManager.QueuedOperation(
+                type: .create,
+                nodeId: node.id,
+                nodeData: nodeData,
+                parentId: node.parentId,
+                metadata: ["title": node.title, "nodeType": node.nodeType]
+            )
+            
+            pendingOperations.append(operation)
+        } catch {
+            // Ignore encoding errors in tests
+        }
+    }
+    
+    func queueDelete(nodeId: String, title: String) async {
+        // Remove any create/update operations for this node
+        pendingOperations.removeAll { $0.nodeId == nodeId && ($0.type == .create || $0.type == .update) }
+        
+        let operation = OfflineQueueManager.QueuedOperation(
+            type: .delete,
+            nodeId: nodeId,
+            metadata: ["title": title]
+        )
+        
+        pendingOperations.append(operation)
+    }
+    
+    func queueToggleTask(nodeId: String, completed: Bool) async {
+        // Remove any existing toggle for this node
+        pendingOperations.removeAll { $0.type == .toggleTask && $0.nodeId == nodeId }
+        
+        let operation = OfflineQueueManager.QueuedOperation(
+            type: .toggleTask,
+            nodeId: nodeId,
+            metadata: ["completed": String(completed)]
+        )
+        
+        pendingOperations.append(operation)
+    }
+    
+    /// Process operations with injectable API for testing
+    func processPendingOperationsWithAPI(_ api: APIClientProtocol) async -> (succeeded: Int, failed: Int, tempIdMap: [String: String]) {
+        guard !pendingOperations.isEmpty else {
+            return (0, 0, [:])
+        }
+        
+        guard !isSyncing else {
+            return (0, 0, [:])
+        }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
+        var succeeded = 0
+        var failed = 0
+        var tempIdMap: [String: String] = [:]
+        var processedOperations: [OfflineQueueManager.QueuedOperation] = []
+        
+        // Process operations in order
+        let sortedOps = pendingOperations.sorted { op1, op2 in
+            let order: [OfflineQueueManager.OperationType: Int] = [.create: 0, .update: 1, .toggleTask: 2, .delete: 3]
+            return (order[op1.type] ?? 99) < (order[op2.type] ?? 99)
+        }
+        
+        for operation in sortedOps {
+            let success = await processOperationWithAPI(operation, api: api, tempIdMap: &tempIdMap)
+            if success {
+                succeeded += 1
+                processedOperations.append(operation)
+            } else {
+                failed += 1
+            }
+        }
+        
+        // Remove successfully processed operations
+        pendingOperations.removeAll { op in processedOperations.contains { $0.id == op.id } }
+        // Don't save during tests
+        
+        return (succeeded, failed, tempIdMap)
+    }
+    
+    private func processOperationWithAPI(_ operation: OfflineQueueManager.QueuedOperation, api: APIClientProtocol, tempIdMap: inout [String: String]) async -> Bool {
+        switch operation.type {
+        case .create:
+            guard let nodeData = operation.nodeData,
+                  let node = try? JSONDecoder().decode(Node.self, from: nodeData) else {
+                return false
+            }
+            
+            let actualParentId = node.parentId.flatMap { tempIdMap[$0] ?? $0 }
+            
+            do {
+                let createdNode: Node
+                switch node.nodeType {
+                case "folder":
+                    createdNode = try await api.createFolder(title: node.title, parentId: actualParentId)
+                case "task":
+                    createdNode = try await api.createTask(
+                        title: node.title,
+                        parentId: actualParentId,
+                        description: node.taskData?.description
+                    )
+                case "note":
+                    createdNode = try await api.createNote(
+                        title: node.title,
+                        parentId: actualParentId,
+                        body: node.noteData?.body ?? ""
+                    )
+                default:
+                    createdNode = try await api.createGenericNode(
+                        title: node.title,
+                        nodeType: node.nodeType,
+                        parentId: actualParentId
+                    )
+                }
+                
+                tempIdMap[node.id] = createdNode.id
+                return true
+            } catch {
+                return false
+            }
+            
+        case .delete:
+            guard let nodeId = operation.nodeId else { return false }
+            
+            // Skip temp IDs that were never synced
+            if nodeId.contains("-") && nodeId.count == 36 {
+                return true
+            }
+            
+            let actualNodeId = tempIdMap[nodeId] ?? nodeId
+            
+            do {
+                try await api.deleteNode(id: actualNodeId)
+                return true
+            } catch {
+                return false
+            }
+            
+        case .toggleTask:
+            guard let nodeId = operation.nodeId,
+                  let completedStr = operation.metadata["completed"],
+                  let completed = Bool(completedStr) else { return false }
+            
+            let actualNodeId = tempIdMap[nodeId] ?? nodeId
+            
+            do {
+                _ = try await api.toggleTaskCompletion(nodeId: actualNodeId, currentlyCompleted: !completed)
+                return true
+            } catch {
+                return false
+            }
+            
+        case .update:
+            // Not implemented
+            return false
+        }
+    }
+    
+}
+
+/// Tests for OfflineQueueManager queue processing
+@MainActor
+final class OfflineQueueProcessTests: XCTestCase {
+    
+    private var queueManager: TestableOfflineQueueManager!
+    private var mockAPI: MockQueueAPIClient!
+    
+    override func setUp() async throws {
+        try await super.setUp()
+        queueManager = TestableOfflineQueueManager()
+        await queueManager.clearQueue()
+        mockAPI = MockQueueAPIClient()
+        queueManager.mockAPI = mockAPI
+    }
+    
+    override func tearDown() async throws {
+        await queueManager.clearQueue()
+        try await super.tearDown()
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func createTestNode(id: String = UUID().uuidString, title: String = "Test Node", type: String = "task") -> Node {
+        return Node(
+            id: id,
+            title: title,
+            nodeType: type,
+            parentId: nil,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date(),
+            taskData: type == "task" ? TaskData(description: "Test description", status: "todo") : nil,
+            noteData: type == "note" ? NoteData(body: "Test body") : nil
+        )
+    }
+    
+    // MARK: - Process Order Tests
+    
+    func testProcessQueue_processesInCorrectOrder_createUpdateToggleDelete() async throws {
+        // Arrange - Add operations in wrong order
+        await queueManager.queueDelete(nodeId: "del-1", title: "Delete 1")
+        await queueManager.queueToggleTask(nodeId: "toggle-1", completed: true)
+        await queueManager.queueCreate(node: createTestNode(id: "create-1", title: "Create 1", type: "folder"))
+        await queueManager.queueDelete(nodeId: "del-2", title: "Delete 2")
+        await queueManager.queueCreate(node: createTestNode(id: "create-2", title: "Create 2", type: "task"))
+        
+        XCTAssertEqual(queueManager.pendingOperations.count, 5, "Should have 5 operations")
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert - Check operations were called in correct order
+        XCTAssertEqual(result.succeeded, 5, "All operations should succeed")
+        XCTAssertEqual(result.failed, 0, "No operations should fail")
+        
+        // Verify creates happened first
+        XCTAssertTrue(mockAPI.createFolderCalled, "Folder should be created")
+        XCTAssertTrue(mockAPI.createTaskCalled, "Task should be created")
+        XCTAssertEqual(mockAPI.createdNodes.count, 2, "Should create 2 nodes")
+        
+        // Verify toggles happened next
+        XCTAssertTrue(mockAPI.toggleTaskCalled, "Task should be toggled")
+        XCTAssertEqual(mockAPI.toggledTasks.count, 1, "Should toggle 1 task")
+        
+        // Verify deletes happened last
+        XCTAssertTrue(mockAPI.deleteNodeCalled, "Nodes should be deleted")
+        XCTAssertEqual(mockAPI.deletedNodeIds.count, 2, "Should delete 2 nodes")
+    }
+    
+    // MARK: - Success Path Tests
+    
+    func testProcessQueue_createOperations_succeed() async throws {
+        // Arrange
+        let folder = createTestNode(id: "folder-1", title: "Test Folder", type: "folder")
+        let task = createTestNode(id: "task-1", title: "Test Task", type: "task")
+        let note = createTestNode(id: "note-1", title: "Test Note", type: "note")
+        
+        await queueManager.queueCreate(node: folder)
+        await queueManager.queueCreate(node: task)
+        await queueManager.queueCreate(node: note)
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 3, "All creates should succeed")
+        XCTAssertEqual(result.failed, 0, "No creates should fail")
+        XCTAssertTrue(mockAPI.createFolderCalled, "Should call createFolder")
+        XCTAssertTrue(mockAPI.createTaskCalled, "Should call createTask")
+        XCTAssertTrue(mockAPI.createNoteCalled, "Should call createNote")
+        
+        // Check temp ID mapping
+        XCTAssertNotNil(result.tempIdMap["folder-1"], "Should map folder ID")
+        XCTAssertNotNil(result.tempIdMap["task-1"], "Should map task ID")
+        XCTAssertNotNil(result.tempIdMap["note-1"], "Should map note ID")
+        
+        // Queue should be empty after success
+        XCTAssertEqual(queueManager.pendingOperations.count, 0, "Queue should be empty")
+    }
+    
+    func testProcessQueue_deleteOperations_succeed() async throws {
+        // Arrange
+        await queueManager.queueDelete(nodeId: "node-1", title: "Node 1")
+        await queueManager.queueDelete(nodeId: "node-2", title: "Node 2")
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 2, "All deletes should succeed")
+        XCTAssertEqual(result.failed, 0, "No deletes should fail")
+        XCTAssertTrue(mockAPI.deleteNodeCalled, "Should call deleteNode")
+        XCTAssertEqual(mockAPI.deletedNodeIds, ["node-1", "node-2"], "Should delete correct nodes")
+        XCTAssertEqual(queueManager.pendingOperations.count, 0, "Queue should be empty")
+    }
+    
+    func testProcessQueue_toggleOperations_succeed() async throws {
+        // Arrange
+        await queueManager.queueToggleTask(nodeId: "task-1", completed: true)
+        await queueManager.queueToggleTask(nodeId: "task-2", completed: false)
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 2, "All toggles should succeed")
+        XCTAssertEqual(result.failed, 0, "No toggles should fail")
+        XCTAssertTrue(mockAPI.toggleTaskCalled, "Should call toggleTask")
+        XCTAssertEqual(mockAPI.toggledTasks.count, 2, "Should toggle 2 tasks")
+        XCTAssertEqual(mockAPI.toggledTasks[0].completed, true, "First task should be completed")
+        XCTAssertEqual(mockAPI.toggledTasks[1].completed, false, "Second task should be uncompleted")
+    }
+    
+    // MARK: - Failure Handling Tests
+    
+    func testProcessQueue_createFailure_keepsInQueue() async throws {
+        // Arrange
+        mockAPI.shouldFailCreate = true
+        let node = createTestNode(title: "Will Fail")
+        await queueManager.queueCreate(node: node)
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 0, "Create should fail")
+        XCTAssertEqual(result.failed, 1, "Should have 1 failure")
+        XCTAssertEqual(queueManager.pendingOperations.count, 1, "Failed operation should remain in queue")
+    }
+    
+    func testProcessQueue_deleteFailure_keepsInQueue() async throws {
+        // Arrange
+        mockAPI.shouldFailDelete = true
+        await queueManager.queueDelete(nodeId: "node-1", title: "Will Fail")
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 0, "Delete should fail")
+        XCTAssertEqual(result.failed, 1, "Should have 1 failure")
+        XCTAssertEqual(queueManager.pendingOperations.count, 1, "Failed operation should remain in queue")
+    }
+    
+    func testProcessQueue_partialFailure_processesSuccessfulOnes() async throws {
+        // Arrange
+        await queueManager.queueCreate(node: createTestNode(id: "success-1", title: "Will Succeed"))
+        await queueManager.queueDelete(nodeId: "fail-1", title: "Will Fail")
+        await queueManager.queueCreate(node: createTestNode(id: "success-2", title: "Will Succeed 2"))
+        
+        mockAPI.shouldFailDelete = true // Only fail deletes
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 2, "Creates should succeed")
+        XCTAssertEqual(result.failed, 1, "Delete should fail")
+        XCTAssertEqual(queueManager.pendingOperations.count, 1, "Only failed operation should remain")
+        XCTAssertEqual(queueManager.pendingOperations.first?.type, .delete, "Delete should remain in queue")
+    }
+    
+    // MARK: - Temp ID Mapping Tests
+    
+    func testProcessQueue_tempIdMapping_mapsCorrectly() async throws {
+        // Arrange
+        let tempId1 = "temp-\(UUID().uuidString)"
+        let tempId2 = "temp-\(UUID().uuidString)"
+        
+        await queueManager.queueCreate(node: createTestNode(id: tempId1, title: "Temp Node 1"))
+        await queueManager.queueCreate(node: createTestNode(id: tempId2, title: "Temp Node 2"))
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 2, "Both creates should succeed")
+        XCTAssertNotNil(result.tempIdMap[tempId1], "Should map first temp ID")
+        XCTAssertNotNil(result.tempIdMap[tempId2], "Should map second temp ID")
+        XCTAssertTrue(result.tempIdMap[tempId1]!.starts(with: "server-"), "Should have server ID prefix")
+        XCTAssertTrue(result.tempIdMap[tempId2]!.starts(with: "server-"), "Should have server ID prefix")
+    }
+    
+    func testProcessQueue_tempIdInParent_usesServerIdForParent() async throws {
+        // Arrange
+        let parentTempId = "temp-parent"
+        let childTempId = "temp-child"
+        
+        let parentNode = Node(
+            id: parentTempId,
+            title: "Parent Folder",
+            nodeType: "folder",
+            parentId: nil,
+            sortOrder: 1000,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        let childNode = Node(
+            id: childTempId,
+            title: "Child Task",
+            nodeType: "task",
+            parentId: parentTempId, // References temp parent
+            sortOrder: 2000,
+            createdAt: Date(),
+            updatedAt: Date(),
+            taskData: TaskData(status: "todo")
+        )
+        
+        await queueManager.queueCreate(node: parentNode)
+        await queueManager.queueCreate(node: childNode)
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 2, "Both creates should succeed")
+        XCTAssertEqual(mockAPI.createdNodes.count, 2, "Should create 2 nodes")
+        
+        // Check that child used mapped parent ID
+        let childCreation = mockAPI.createdNodes[1]
+        XCTAssertNotNil(childCreation.parentId, "Child should have parent ID")
+        XCTAssertTrue(childCreation.parentId!.starts(with: "server-"), "Should use server parent ID")
+        XCTAssertEqual(childCreation.parentId, result.tempIdMap[parentTempId], "Should use mapped parent ID")
+    }
+    
+    // MARK: - Empty Queue Tests
+    
+    func testProcessQueue_emptyQueue_returnsZeroProcessed() async throws {
+        // Arrange - Empty queue
+        await queueManager.clearQueue()
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 0, "Should succeed 0")
+        XCTAssertEqual(result.failed, 0, "Should fail 0")
+        XCTAssertEqual(result.tempIdMap.count, 0, "Should have no mappings")
+    }
+    
+    // MARK: - Skip Unsynced Temp Deletes
+    
+    func testProcessQueue_deleteUnsyncedTempNode_skipsSuccessfully() async throws {
+        // Arrange - Delete a temp ID that was never synced
+        let tempId = UUID().uuidString // Looks like a temp ID
+        await queueManager.queueDelete(nodeId: tempId, title: "Never Synced")
+        
+        // Act
+        let result = await queueManager.processPendingOperationsWithAPI(mockAPI)
+        
+        // Assert
+        XCTAssertEqual(result.succeeded, 1, "Should count as success")
+        XCTAssertEqual(result.failed, 0, "Should not fail")
+        XCTAssertFalse(mockAPI.deleteNodeCalled, "Should not call API delete")
+        XCTAssertEqual(queueManager.pendingOperations.count, 0, "Should clear from queue")
+    }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "789e0123-e89b-12d3-a456-426614174005",
+  "title": "Weekly Review Template",
+  "node_type": "template",
+  "parent_id": null,
+  "owner_id": "0e212ca2-278d-4926-a24f-6f3b691eaf36",
+  "created_at": "2025-08-20T14:00:00.000000+00:00",
+  "updated_at": "2025-09-05T09:30:00.000000+00:00",
+  "sort_order": 5000,
+  "is_list": false,
+  "children_count": 3,
+  "tags": [],
+  "task_data": null,
+  "note_data": null,
+  "template_data": {
+    "category": "review",
+    "usage_count": 5,
+    "target_node_id": null,
+    "create_container": true
+  },
+  "smart_folder_data": null
+}

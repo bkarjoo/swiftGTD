@@ -1,0 +1,12 @@
+// SwiftGTD Configuration Example
+// Copy this file to Config.xcconfig and update with your values
+// IMPORTANT: Never commit Config.xcconfig to version control
+
+// API Configuration
+API_BASE_URL = http:/$()/localhost:8003
+
+// For Tailscale or other private networks:
+// API_BASE_URL = http:/$()/your-server-ip:8003
+
+// For production:
+// API_BASE_URL = https:/$()/api.yourapp.com
