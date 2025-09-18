@@ -20,10 +20,11 @@ struct SwiftGTDApp_macOS: App {
             ContentView()
                 .environmentObject(authManager)
                 .environmentObject(dataManager)
-                .frame(minWidth: 800, minHeight: 600)
+                .frame(minWidth: 400, minHeight: 300)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)
+        .windowResizability(.automatic)
         
         Settings {
             SettingsView()
