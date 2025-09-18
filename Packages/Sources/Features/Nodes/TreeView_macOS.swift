@@ -38,6 +38,12 @@ public struct TreeView_macOS: View {
                 }
                 
                 // Main content
+                // Wrapping in background to prevent focus ring
+                Color.clear
+                    .focusable()
+                    .focused($isTreeFocused)
+                    .allowsHitTesting(false)
+                    .overlay(
                 ScrollViewReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 0) {
@@ -68,9 +74,15 @@ public struct TreeView_macOS: View {
                         }
                     }
                 }
+                    )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .focusable()
-                .focused($isTreeFocused)
+                .onTapGesture {
+                    // Ensure focus when clicking on the tree view area
+                    if !isTreeFocused {
+                        logger.log("🎯 Setting focus via tap gesture", category: "TreeView")
+                        isTreeFocused = true
+                    }
+                }
                 .onChange(of: viewModel.isEditing) { isEditing in
                     if !isEditing {
                         // When editing ends, restore focus to tree
@@ -99,6 +111,16 @@ public struct TreeView_macOS: View {
                 }
                 .onAppear {
                     setupKeyEventMonitor()
+                    // Set focus when view appears (e.g., after login)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        logger.log("🎯 Setting initial focus to tree view", category: "TreeView")
+                        self.isTreeFocused = true
+                        // Also make the window key and first responder
+                        if let window = NSApp.keyWindow {
+                            window.makeKey()
+                            window.makeFirstResponder(window.contentView)
+                        }
+                    }
                 }
                 .onDisappear {
                     // Clean up keyboard monitor to prevent leaks
