@@ -22,7 +22,7 @@ export TEST_API_URL="http://localhost:8003"
 ```swift
 // Load from environment or configuration
 let testEmail = ProcessInfo.processInfo.environment["TEST_EMAIL"] ?? "test@example.com"
-let testPassword = ProcessInfo.processInfo.environment["TEST_PASSWORD"] ?? "testpass"
+let testPassword = ProcessInfo.processInfo.environment["TEST_PASSWORD"] ?? "changeme"
 ```
 
 ## Security Notes
