@@ -282,6 +282,20 @@ public struct TabbedTreeView: View {
             // Handle keyboard shortcuts
             if event.modifierFlags.contains(.command) {
                 switch event.keyCode {
+                case 3: // F key - Focus (Cmd+Shift+F)
+                    if event.modifierFlags.contains(.shift) {
+                        logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TabbedTreeView")
+                        if let selectedId = viewModel.selectedNodeId,
+                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                            if selectedNode.nodeType != "note" {
+                                viewModel.focusedNodeId = selectedNode.id
+                                viewModel.expandedNodes.insert(selectedNode.id)
+                                NotificationCenter.default.post(name: .focusChanged, object: nil)
+                            }
+                        }
+                        return nil
+                    }
+
                 case 17: // T - tags/new tab
                     if event.modifierFlags.contains(.shift) {
                         // Cmd+Shift+T - New tab

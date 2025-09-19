@@ -268,24 +268,28 @@ public struct TreeView_macOS: View {
                     return true
                 }
 
-            case 3: // F key - Focus
-                logger.log("⌨️ Cmd+F pressed - focus on node", category: "TreeView")
-                if let selectedId = viewModel.selectedNodeId,
-                   let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                    if selectedNode.nodeType == "smart_folder" {
-                        logger.log("🧩 Smart folder detected, focusing and executing rule", category: "TreeView")
-                        viewModel.focusedNodeId = selectedNode.id
-                        viewModel.expandedNodes.insert(selectedNode.id)
-                        Task {
-                            await executeSmartFolderRule(for: selectedNode)
+            case 3: // F key - Focus (Cmd+Shift+F)
+                if event.modifierFlags.contains(.shift) {
+                    logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TreeView")
+                    if let selectedId = viewModel.selectedNodeId,
+                       let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                        if selectedNode.nodeType == "smart_folder" {
+                            logger.log("🧩 Smart folder detected, focusing and executing rule", category: "TreeView")
+                            viewModel.focusedNodeId = selectedNode.id
+                            viewModel.expandedNodes.insert(selectedNode.id)
+                            Task {
+                                await executeSmartFolderRule(for: selectedNode)
+                            }
+                        } else if selectedNode.nodeType != "note" {
+                            viewModel.focusedNodeId = selectedNode.id
+                            viewModel.expandedNodes.insert(selectedNode.id)
                         }
-                    } else if selectedNode.nodeType != "note" {
-                        viewModel.focusedNodeId = selectedNode.id
-                        viewModel.expandedNodes.insert(selectedNode.id)
+                        NotificationCenter.default.post(name: .focusChanged, object: nil)
                     }
-                    NotificationCenter.default.post(name: .focusChanged, object: nil)
+                    return true
                 }
-                return true
+
+                break
 
             case 17: // T key - Tags
                 logger.log("⌨️ Cmd+T pressed - show tags", category: "TreeView")
