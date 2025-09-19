@@ -8,6 +8,7 @@ public struct LoginView: View {
     @State private var password = ""
     @State private var isSignupMode = false
     @State private var username = ""
+    @State private var rememberMe = false
     @FocusState private var focusedField: Field?
 
     private enum Field {
@@ -71,7 +72,7 @@ public struct LoginView: View {
                                             username: username.isEmpty ? nil : username
                                         )
                                     } else {
-                                        await authManager.login(email: email, password: password)
+                                        await authManager.login(email: email, password: password, rememberMe: rememberMe)
                                     }
                                 }
                             }
@@ -79,11 +80,29 @@ public struct LoginView: View {
                         #if os(macOS)
                         .frame(maxWidth: 300)
                         #endif
+
+                    if !isSignupMode {
+                        HStack {
+                            Toggle(isOn: $rememberMe) {
+                                Text("Remember Me")
+                                    .font(.footnote)
+                            }
+                            #if os(macOS)
+                            .toggleStyle(.checkbox)
+                            #else
+                            .toggleStyle(.switch)
+                            #endif
+                            Spacer()
+                        }
+                        #if os(macOS)
+                        .frame(maxWidth: 300)
+                        #endif
+                    }
                 }
                 #if os(iOS)
                 .padding(.horizontal)
                 #endif
-                
+
                 if let errorMessage = authManager.errorMessage {
                     Text(errorMessage)
                         .foregroundColor(.red)
@@ -100,7 +119,7 @@ public struct LoginView: View {
                                 username: username.isEmpty ? nil : username
                             )
                         } else {
-                            await authManager.login(email: email, password: password)
+                            await authManager.login(email: email, password: password, rememberMe: rememberMe)
                         }
                     }
                 }) {

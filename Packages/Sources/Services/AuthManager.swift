@@ -37,13 +37,21 @@ public class AuthManager: ObservableObject {
         }
     }
     
-    public func login(email: String, password: String) async {
+    public func login(email: String, password: String, rememberMe: Bool = false) async {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             let response = try await api.login(email: email, password: password)
-            UserDefaults.standard.set(response.accessToken, forKey: tokenKey)
+
+            // Only persist token if Remember Me is checked
+            if rememberMe {
+                UserDefaults.standard.set(response.accessToken, forKey: tokenKey)
+            } else {
+                // Clear any existing stored token
+                UserDefaults.standard.removeObject(forKey: tokenKey)
+            }
+
             api.setAuthToken(response.accessToken)
             // After login, get the current user info
             let user = try await api.getCurrentUser()
@@ -52,19 +60,20 @@ public class AuthManager: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         isLoading = false
     }
     
     public func signup(email: String, password: String, username: String?) async {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // First signup
             _ = try await api.signup(email: email, password: password, username: username)
             // Then login to get token
             let loginResponse = try await api.login(email: email, password: password)
+            // Always remember new users (they just signed up, so keep them logged in)
             UserDefaults.standard.set(loginResponse.accessToken, forKey: tokenKey)
             api.setAuthToken(loginResponse.accessToken)
             // Get current user info
@@ -74,7 +83,7 @@ public class AuthManager: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         isLoading = false
     }
     
