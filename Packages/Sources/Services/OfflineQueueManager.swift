@@ -277,14 +277,17 @@ public class OfflineQueueManager: ObservableObject {
             logger.log("📭 No pending operations to sync", category: "OfflineQueue")
             return (0, 0, [:])
         }
-        
+
         guard !isSyncing else {
-            logger.log("⏳ Already syncing", category: "OfflineQueue")
+            logger.log("⏳ Already syncing - skipping duplicate call", category: "OfflineQueue")
             return (0, 0, [:])
         }
-        
+
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            logger.log("🔓 Sync lock released", category: "OfflineQueue")
+        }
         
         logger.log("🔄 Starting sync of \(pendingOperations.count) operations", category: "OfflineQueue")
         
@@ -307,18 +310,23 @@ public class OfflineQueueManager: ObservableObject {
         }
         
         for operation in sortedOps {
+            logger.log("⚙️ Processing \(operation.type) operation: \(operation.metadata["title"] ?? operation.nodeId ?? "unknown")", category: "OfflineQueue")
             let success = await processOperation(operation, tempIdMap: &tempIdMap)
             if success {
                 succeeded += 1
                 processedOperations.append(operation)
+                logger.log("✅ Successfully processed \(operation.type) operation", category: "OfflineQueue")
             } else {
                 failed += 1
                 logger.log("❌ Failed to sync operation: \(operation.type) for \(operation.metadata["title"] ?? operation.nodeId ?? "unknown")", level: .error, category: "OfflineQueue")
             }
         }
-        
+
         // Remove successfully processed operations
+        let beforeCount = pendingOperations.count
         pendingOperations.removeAll { op in processedOperations.contains { $0.id == op.id } }
+        let removedCount = beforeCount - pendingOperations.count
+        logger.log("🧹 Removed \(removedCount) processed operations, \(pendingOperations.count) remaining", category: "OfflineQueue")
         await saveQueue()
         
         logger.log("✅ Sync complete: \(succeeded) succeeded, \(failed) failed", category: "OfflineQueue")

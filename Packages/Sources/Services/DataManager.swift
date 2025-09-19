@@ -22,6 +22,7 @@ public class DataManager: ObservableObject {
     private let offlineQueue = OfflineQueueManager.shared
     private let networkMonitor: NetworkMonitorProtocol
     private var cancellables = Set<AnyCancellable>()
+    private var syncTask: Task<Void, Never>?  // Track current sync task
     
     public init(
         apiClient: APIClientProtocol = APIClient.shared,
@@ -47,7 +48,7 @@ public class DataManager: ObservableObject {
                         // Trigger auto-sync if coming back online with pending operations
                         if wasOffline && !self.offlineQueue.pendingOperations.isEmpty {
                             logger.log("🔄 Network restored - triggering auto-sync of pending operations", category: "DataManager")
-                            Task {
+                            self.syncTask = Task {
                                 await self.syncPendingOperations()
                             }
                         }
@@ -71,7 +72,7 @@ public class DataManager: ObservableObject {
                         // Trigger auto-sync if coming back online with pending operations
                         if wasOffline && !self.offlineQueue.pendingOperations.isEmpty {
                             logger.log("🔄 [TEST] Network restored - triggering auto-sync of pending operations", category: "DataManager")
-                            Task {
+                            self.syncTask = Task {
                                 await self.syncPendingOperations()
                             }
                         }
@@ -454,7 +455,22 @@ public class DataManager: ObservableObject {
     /// Sync pending offline operations
     public func syncPendingOperations() async {
         logger.log("🔄 Starting sync of pending operations", category: "DataManager")
-        
+
+        // Cancel any existing sync task to prevent duplicates
+        if let existingTask = syncTask, !existingTask.isCancelled {
+            logger.log("⚠️ Cancelling existing sync task to prevent duplicates", category: "DataManager")
+            existingTask.cancel()
+        }
+
+        // Add delay to debounce rapid network changes (like subway WiFi)
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+
+        // Check if cancelled during delay
+        if Task.isCancelled {
+            logger.log("🚫 Sync cancelled during debounce delay", category: "DataManager")
+            return
+        }
+
         // Process the queue
         let (succeeded, failed, tempIdMap) = await offlineQueue.processPendingOperations()
         
