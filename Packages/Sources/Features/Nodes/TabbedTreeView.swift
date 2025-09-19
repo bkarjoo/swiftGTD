@@ -19,9 +19,12 @@ public class TabModel: ObservableObject, Identifiable {
 
 public struct TabbedTreeView: View {
     @EnvironmentObject var dataManager: DataManager
-    @State private var tabs: [TabModel] = [TabModel()]
+    @State private var tabs: [TabModel] = [TabModel(title: "Main")]
     @State private var selectedTabId: UUID?
     @State private var activeCreateVM: TreeViewModel?
+    @State private var showingNewTabDialog = false
+    @State private var newTabName = ""
+    @State private var editingTabId: UUID?
 
     public init() {}
 
@@ -41,6 +44,12 @@ public struct TabbedTreeView: View {
                         .environmentObject(dataManager)
                         .frame(minWidth: 400, minHeight: 150)
                 }
+                .sheet(isPresented: $showingNewTabDialog) {
+                    NewTabSheet(tabName: $newTabName) {
+                        createTabWithName(newTabName)
+                        showingNewTabDialog = false
+                    }
+                }
         }
         .onAppear {
             if selectedTabId == nil, let firstTab = tabs.first {
@@ -55,6 +64,7 @@ public struct TabbedTreeView: View {
             TabBarView(
                 tabs: $tabs,
                 selectedTabId: $selectedTabId,
+                editingTabId: $editingTabId,
                 onNewTab: { addNewTab() },
                 onCloseTab: { closeTab($0) }
             )
@@ -137,7 +147,13 @@ public struct TabbedTreeView: View {
     }
 
     private func addNewTab() {
-        let newTab = TabModel(title: "New Tab")
+        newTabName = ""
+        showingNewTabDialog = true
+    }
+
+    private func createTabWithName(_ name: String) {
+        let tabName = name.isEmpty ? "New Tab" : name
+        let newTab = TabModel(title: tabName)
         tabs.append(newTab)
         selectedTabId = newTab.id
     }
@@ -174,6 +190,7 @@ public struct TabbedTreeView: View {
 struct TabBarView: View {
     @Binding var tabs: [TabModel]
     @Binding var selectedTabId: UUID?
+    @Binding var editingTabId: UUID?
     let onNewTab: () -> Void
     let onCloseTab: (UUID) -> Void
 
@@ -185,8 +202,11 @@ struct TabBarView: View {
                         TabBarItem(
                             tab: tab,
                             isSelected: tab.id == selectedTabId,
+                            isEditing: editingTabId == tab.id,
                             onSelect: { selectedTabId = tab.id },
-                            onClose: { onCloseTab(tab.id) }
+                            onClose: { onCloseTab(tab.id) },
+                            onStartEdit: { editingTabId = tab.id },
+                            onEndEdit: { editingTabId = nil }
                         )
                     }
                 }
@@ -208,10 +228,16 @@ struct TabBarView: View {
 struct TabBarItem: View {
     @ObservedObject var tab: TabModel
     let isSelected: Bool
+    let isEditing: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onStartEdit: () -> Void
+    let onEndEdit: () -> Void
 
     @State private var isHovering = false
+    @State private var editText: String = ""
+    @FocusState private var isTextFieldFocused: Bool
+    @State private var lastClickTime = Date.distantPast
 
     var body: some View {
         HStack(spacing: 4) {
@@ -221,13 +247,32 @@ struct TabBarItem: View {
                     .foregroundColor(.secondary)
             }
 
-            Text(tab.title)
+            if isEditing {
+                TextField("Tab name", text: $editText, onCommit: {
+                    if !editText.isEmpty {
+                        tab.title = editText
+                    }
+                    onEndEdit()
+                })
+                .textFieldStyle(.plain)
                 .font(.system(size: 11))
-                .lineLimit(1)
-                .truncationMode(.middle)
                 .frame(maxWidth: 120)
+                .focused($isTextFieldFocused)
+                .onAppear {
+                    editText = tab.title
+                    DispatchQueue.main.async {
+                        isTextFieldFocused = true
+                    }
+                }
+            } else {
+                Text(tab.title)
+                    .font(.system(size: 11))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 120)
+            }
 
-            if isSelected || isHovering {
+            if (isSelected || isHovering) && !isEditing {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .medium))
@@ -246,10 +291,60 @@ struct TabBarItem: View {
                 .stroke(isSelected ? Color(NSColor.controlAccentColor).opacity(0.3) : Color.clear, lineWidth: 1)
         )
         .onTapGesture {
-            onSelect()
+            let now = Date()
+            if isSelected && now.timeIntervalSince(lastClickTime) < 0.5 {
+                // Double-click on selected tab - start editing
+                onStartEdit()
+            } else {
+                onSelect()
+            }
+            lastClickTime = now
         }
         .onHover { hovering in
             isHovering = hovering
+        }
+    }
+}
+
+struct NewTabSheet: View {
+    @Binding var tabName: String
+    let onCreateTab: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @FocusState private var isTextFieldFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("New Tab")
+                .font(.headline)
+                .padding(.top, 4)
+
+            TextField("Enter tab name", text: $tabName)
+                .textFieldStyle(.roundedBorder)
+                .focused($isTextFieldFocused)
+                .onSubmit {
+                    onCreateTab()
+                }
+                .frame(minWidth: 250)
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Create") {
+                    onCreateTab()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 300)
+        .onAppear {
+            DispatchQueue.main.async {
+                isTextFieldFocused = true
+            }
         }
     }
 }
