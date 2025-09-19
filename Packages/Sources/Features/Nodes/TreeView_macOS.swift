@@ -116,7 +116,9 @@ public struct TreeView_macOS: View {
                     }
                 }
                 .onAppear {
-                    setupKeyEventMonitor()
+                    if !isInTabbedView {
+                        setupKeyEventMonitor()
+                    }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         logger.log("🎯 Setting initial focus to tree view", category: "TreeView")
                         self.isTreeFocused = true
@@ -127,9 +129,11 @@ public struct TreeView_macOS: View {
                     }
                 }
                 .onDisappear {
-                    if let monitor = keyEventMonitor {
-                        NSEvent.removeMonitor(monitor)
-                        keyEventMonitor = nil
+                    if !isInTabbedView {
+                        if let monitor = keyEventMonitor {
+                            NSEvent.removeMonitor(monitor)
+                            keyEventMonitor = nil
+                        }
                     }
                 }
             }
@@ -162,13 +166,15 @@ public struct TreeView_macOS: View {
                 KeyboardShortcutsHelpView()
             }
             .onChange(of: viewModel.showingNoteEditorForNode != nil) { isShowing in
-                if isShowing {
-                    if let monitor = keyEventMonitor {
-                        NSEvent.removeMonitor(monitor)
-                        keyEventMonitor = nil
+                if !isInTabbedView {
+                    if isShowing {
+                        if let monitor = keyEventMonitor {
+                            NSEvent.removeMonitor(monitor)
+                            keyEventMonitor = nil
+                        }
+                    } else {
+                        setupKeyEventMonitor()
                     }
-                } else {
-                    setupKeyEventMonitor()
                 }
             }
             .alert("Delete Node", isPresented: $viewModel.showingDeleteAlert) {

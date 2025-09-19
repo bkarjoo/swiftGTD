@@ -25,6 +25,7 @@ public struct TabbedTreeView: View {
     @State private var showingNewTabDialog = false
     @State private var newTabName = ""
     @State private var editingTabId: UUID?
+    @State private var keyEventMonitor: Any?
 
     public init() {}
 
@@ -54,6 +55,13 @@ public struct TabbedTreeView: View {
         .onAppear {
             if selectedTabId == nil, let firstTab = tabs.first {
                 selectedTabId = firstTab.id
+            }
+            setupKeyEventMonitor()
+        }
+        .onDisappear {
+            if let monitor = keyEventMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyEventMonitor = nil
             }
         }
     }
@@ -183,6 +191,116 @@ public struct TabbedTreeView: View {
             tab.title = String(node.title.prefix(20))
         } else {
             tab.title = "All Nodes"
+        }
+    }
+
+    private func setupKeyEventMonitor() {
+        if let monitor = keyEventMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard let currentTab = self.currentTab else { return event }
+            let viewModel = currentTab.viewModel
+
+            // Don't process if modals are showing
+            if viewModel.showingDeleteAlert ||
+               viewModel.showingCreateDialog ||
+               viewModel.showingDetailsForNode != nil ||
+               viewModel.showingTagPickerForNode != nil ||
+               viewModel.showingHelpWindow ||
+               self.showingNewTabDialog ||
+               self.editingTabId != nil {
+                return event
+            }
+
+            // Don't process if text field has focus
+            if let firstResponder = NSApp.keyWindow?.firstResponder {
+                if firstResponder is NSTextView || firstResponder is NSTextField {
+                    return event
+                }
+            }
+
+            // Handle keyboard shortcuts
+            if event.modifierFlags.contains(.command) {
+                switch event.keyCode {
+                case 17: // T - tags/new tab
+                    if event.modifierFlags.contains(.shift) {
+                        // Cmd+Shift+T - New tab
+                        self.addNewTab()
+                        return nil
+                    } else {
+                        // Cmd+T - Tags
+                        if let selectedId = viewModel.selectedNodeId,
+                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
+                           selectedNode.nodeType != "smart_folder" {
+                            viewModel.showingTagPickerForNode = selectedNode
+                        }
+                        return nil
+                    }
+                case 13: // W - close tab
+                    if let tabId = self.selectedTabId {
+                        self.closeTab(tabId)
+                        return nil
+                    }
+                case 2: // D - details/delete
+                    if event.modifierFlags.contains(.shift) {
+                        // Cmd+Shift+D - Delete
+                        if let selectedId = viewModel.selectedNodeId,
+                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                            viewModel.deleteNode(selectedNode)
+                        }
+                        return nil
+                    } else {
+                        // Cmd+D - Details
+                        if let selectedId = viewModel.selectedNodeId,
+                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                            viewModel.showingDetailsForNode = selectedNode
+                        }
+                        return nil
+                    }
+                default:
+                    break
+                }
+            }
+
+            // Handle space bar for editing
+            if event.keyCode == 49 { // Space
+                if let selectedId = viewModel.selectedNodeId {
+                    viewModel.isEditing = true
+                    return nil
+                }
+            }
+
+            // Handle creation shortcuts (T, F, N)
+            switch event.keyCode {
+            case 17 where !event.modifierFlags.contains(.command): // T - task
+                viewModel.createNodeType = "task"
+                viewModel.createNodeTitle = ""
+                self.activeCreateVM = viewModel
+                return nil
+            case 3 where !event.modifierFlags.contains(.command): // F - folder
+                viewModel.createNodeType = "folder"
+                viewModel.createNodeTitle = ""
+                self.activeCreateVM = viewModel
+                return nil
+            case 45: // N - note
+                viewModel.createNodeType = "note"
+                viewModel.createNodeTitle = ""
+                self.activeCreateVM = viewModel
+                return nil
+            case 47: // . - toggle task
+                if let selectedId = viewModel.selectedNodeId,
+                   let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
+                   selectedNode.nodeType == "task" {
+                    viewModel.toggleTaskStatus(selectedNode)
+                    return nil
+                }
+            default:
+                break
+            }
+
+            return event
         }
     }
 }
