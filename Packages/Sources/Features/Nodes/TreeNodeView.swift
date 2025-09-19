@@ -236,26 +236,43 @@ public struct TreeNodeView: View {
             .buttonStyle(PlainButtonStyle())
             .disabled(!hasChildren)
             
-            // Node icon - clickable for tasks to toggle status
-            if node.nodeType == "task" {
-                Button(action: {
+            // Node icon - clickable to toggle expand/collapse (same as chevron)
+            // For tasks, also toggles completion status
+            Button(action: {
+                if node.nodeType == "task" {
+                    // For tasks, toggle completion status
                     logger.log("🔘 Task checkbox clicked for node: \(node.id) - \(node.title)", category: "TreeNodeView")
                     logger.log("Current completion status: \(node.taskData?.completedAt != nil)", category: "TreeNodeView")
                     onToggleTaskStatus(node)
                     logger.log("✅ onToggleTaskStatus called", category: "TreeNodeView")
-                }) {
-                    Image(systemName: nodeIcon)
-                        .font(.system(size: fontSize))
-                        .foregroundColor(nodeIconColor)
-                        .frame(width: fontSize + 6)
+                } else if hasChildren {
+                    // For non-task nodes with children, toggle expand/collapse (same as chevron)
+                    logger.log("🔽 Icon clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if isExpanded {
+                            logger.log("📦 Collapsing node via icon: \(node.title)", category: "TreeNodeView")
+                            expandedNodes.remove(node.id)
+                        } else {
+                            logger.log("📤 Expanding node via icon: \(node.title)", category: "TreeNodeView")
+                            expandedNodes.insert(node.id)
+                            // SMART FOLDER RULE 3: Execute rule when expanding via icon
+                            if node.nodeType == "smart_folder" {
+                                logger.log("🧩 Smart folder detected on expand via icon, executing rule", category: "TreeNodeView")
+                                Task {
+                                    await executeSmartFolderRule()
+                                }
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
-            } else {
+            }) {
                 Image(systemName: nodeIcon)
                     .font(.system(size: fontSize))
                     .foregroundColor(nodeIconColor)
                     .frame(width: fontSize + 6)
             }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(node.nodeType != "task" && !hasChildren)
             
             // Node title - clickable to focus (or open note editor for notes)
             if isEditing && selectedNodeId == node.id {
