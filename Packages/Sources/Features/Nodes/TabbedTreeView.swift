@@ -428,11 +428,21 @@ public struct TabbedTreeView: View {
 
                     // Restore focused node if it still exists
                     if let focusedId = tabState.focusedNodeId {
-                        if tab.viewModel.allNodes.contains(where: { $0.id == focusedId }) {
+                        if let focusedNode = tab.viewModel.allNodes.first(where: { $0.id == focusedId }) {
                             // Re-set both focused node and selected node after loading
                             tab.viewModel.focusedNodeId = focusedId
                             tab.viewModel.selectedNodeId = focusedId
-                            logger.log("✅ Restored focus and selection for tab '\(tab.title)' to node: \(focusedId)", category: "TabbedTreeView")
+
+                            // Expand the focused node and all its ancestors
+                            tab.viewModel.expandedNodes.insert(focusedId)
+
+                            // Expand all parent nodes up to root
+                            let parentChain = tab.viewModel.getParentChain(for: focusedNode)
+                            for parent in parentChain {
+                                tab.viewModel.expandedNodes.insert(parent.id)
+                            }
+
+                            logger.log("✅ Restored focus and selection for tab '\(tab.title)' to node: \(focusedId) with \(parentChain.count) expanded parents", category: "TabbedTreeView")
                         } else {
                             // Node was deleted, reset focus
                             tab.viewModel.focusedNodeId = nil
