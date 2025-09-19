@@ -145,7 +145,6 @@ public struct TabbedTreeView: View {
                 .environmentObject(dataManager)
                 .environment(\.isInTabbedView, true)
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
-                    updateTabTitle(currentTab)
                     saveState()
                 }
                 .id(currentTab.id)
@@ -243,14 +242,6 @@ public struct TabbedTreeView: View {
         }
     }
 
-    private func updateTabTitle(_ tab: TabModel) {
-        if let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId,
-           let node = tab.viewModel.allNodes.first(where: { $0.id == focusedId }) {
-            tab.title = String(node.title.prefix(20))
-        } else {
-            tab.title = "All Nodes"
-        }
-    }
 
     private func setupKeyEventMonitor() {
         if let monitor = keyEventMonitor {
