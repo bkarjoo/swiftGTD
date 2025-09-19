@@ -39,7 +39,15 @@ public class OfflineQueueManager: ObservableObject {
     }
     
     @Published public var pendingOperations: [QueuedOperation] = []
-    @Published public var isSyncing = false
+    @Published public var isSyncing = false {
+        didSet {
+            if isSyncing {
+                logger.log("🔒 isSyncing set to true", category: "OfflineQueue")
+            } else {
+                logger.log("🔓 isSyncing set to false", category: "OfflineQueue")
+            }
+        }
+    }
     
     private let queueFile = "offline_queue.json"
     
@@ -52,6 +60,9 @@ public class OfflineQueueManager: ObservableObject {
     }
     
     private init() {
+        // Reset sync flag on startup (in case app crashed while syncing)
+        isSyncing = false
+
         Task {
             await loadQueue()
         }
@@ -275,6 +286,11 @@ public class OfflineQueueManager: ObservableObject {
     public func processPendingOperations() async -> (succeeded: Int, failed: Int, tempIdMap: [String: String]) {
         guard !pendingOperations.isEmpty else {
             logger.log("📭 No pending operations to sync", category: "OfflineQueue")
+            // Ensure isSyncing is false even if queue is empty
+            if isSyncing {
+                logger.log("⚠️ Resetting stuck isSyncing flag", category: "OfflineQueue")
+                isSyncing = false
+            }
             return (0, 0, [:])
         }
 
@@ -336,11 +352,18 @@ public class OfflineQueueManager: ObservableObject {
     
     private func processOperation(_ operation: QueuedOperation, tempIdMap: inout [String: String]) async -> Bool {
         let api = APIClient.shared
-        
+
+        logger.log("🔧 Processing \(operation.type) operation", category: "OfflineQueue")
+
         switch operation.type {
         case .create:
-            guard let nodeData = operation.nodeData,
-                  let node = try? JSONDecoder().decode(Node.self, from: nodeData) else {
+            guard let nodeData = operation.nodeData else {
+                logger.log("❌ No node data in create operation", level: .error, category: "OfflineQueue")
+                return false
+            }
+
+            guard let node = try? JSONDecoder().decode(Node.self, from: nodeData) else {
+                logger.log("❌ Failed to decode node data", level: .error, category: "OfflineQueue")
                 return false
             }
             

@@ -26,15 +26,19 @@ public struct NetworkStatusIndicator: View {
                     .foregroundColor(networkMonitor.isConnected ? .green : .red)
                 
                 // Show pending sync indicator
-                if !offlineQueue.pendingOperations.isEmpty {
+                if !offlineQueue.pendingOperations.isEmpty || offlineQueue.isSyncing {
                     if offlineQueue.isSyncing {
                         ProgressView()
                             .scaleEffect(0.6)
                             .frame(width: 12, height: 12)
                     } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 12))
-                            .foregroundColor(.orange)
+                        // Show count of pending operations
+                        Text("\(offlineQueue.pendingOperations.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(2)
+                            .background(Circle().fill(Color.orange))
+                            .frame(width: 16, height: 16)
                     }
                 }
             }
@@ -154,10 +158,30 @@ private struct NetworkDetailsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text(offlineQueue.isSyncing ? "Syncing now..." : 
+                    Text(offlineQueue.isSyncing ? "Syncing now..." :
                          (networkMonitor.isConnected ? "Syncing automatically..." : "Will sync when connection is restored"))
                         .font(.caption2)
                         .foregroundColor(.secondary)
+
+                    // Debug buttons
+                    HStack {
+                        Button("Force Sync") {
+                            Task {
+                                let result = await offlineQueue.processPendingOperations()
+                                print("Sync result: \(result)")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+
+                        Button("Clear Queue") {
+                            Task {
+                                await offlineQueue.clearQueue()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
                 }
             }
         }
