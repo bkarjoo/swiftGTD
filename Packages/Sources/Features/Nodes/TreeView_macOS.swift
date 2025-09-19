@@ -199,8 +199,14 @@ public struct TreeView_macOS: View {
                 viewModel.setDataManager(dataManager)
                 await viewModel.loadAllNodes()
 
-                if let firstRoot = viewModel.getRootNodes().first {
-                    viewModel.selectedNodeId = firstRoot.id
+                // Only set initial selection if not in tabbed view and no focus/selection exists
+                if !isInTabbedView && viewModel.focusedNodeId == nil && viewModel.selectedNodeId == nil {
+                    if let firstRoot = viewModel.getRootNodes().first {
+                        logger.log("🎯 Setting initial selection to first root: \(firstRoot.id)", category: "TreeView")
+                        viewModel.selectedNodeId = firstRoot.id
+                    }
+                } else {
+                    logger.log("⏭️ Skipping initial selection (isInTabbedView: \(isInTabbedView), focusedNodeId: \(viewModel.focusedNodeId ?? "nil"), selectedNodeId: \(viewModel.selectedNodeId ?? "nil"))", category: "TreeView")
                 }
             }
         }
@@ -277,6 +283,7 @@ public struct TreeView_macOS: View {
                         viewModel.focusedNodeId = selectedNode.id
                         viewModel.expandedNodes.insert(selectedNode.id)
                     }
+                    NotificationCenter.default.post(name: .focusChanged, object: nil)
                 }
                 return true
 

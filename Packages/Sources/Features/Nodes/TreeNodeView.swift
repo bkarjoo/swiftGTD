@@ -110,6 +110,7 @@ public struct TreeNodeView: View {
                             // Focus on this node
                             focusedNodeId = node.id
                             expandedNodes.insert(node.id)
+                            NotificationCenter.default.post(name: .focusChanged, object: nil)
                         }) {
                             Label("Focus", systemImage: "arrow.right.circle")
                         }

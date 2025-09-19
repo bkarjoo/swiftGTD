@@ -7,25 +7,51 @@ import Services
 
 @MainActor
 public class TabModel: ObservableObject, Identifiable {
-    public let id = UUID()
-    @Published public var title: String
+    public let id: UUID
+    @Published public var title: String {
+        didSet {
+            // Notify TabbedTreeView to save state when title changes
+            NotificationCenter.default.post(name: .tabStateChanged, object: nil)
+        }
+    }
     public let viewModel: TreeViewModel
+    private var cancellables = Set<AnyCancellable>()
 
-    public init(title: String = "All Nodes") {
+    public init(id: UUID = UUID(), title: String = "All Nodes", focusedNodeId: String? = nil) {
+        self.id = id
         self.title = title
         self.viewModel = TreeViewModel()
+        self.viewModel.focusedNodeId = focusedNodeId
+
+        // Watch for focus changes and notify
+        self.viewModel.$focusedNodeId
+            .sink { _ in
+                NotificationCenter.default.post(name: .tabStateChanged, object: nil)
+            }
+            .store(in: &cancellables)
     }
+}
+
+extension Notification.Name {
+    static let tabStateChanged = Notification.Name("tabStateChanged")
+    static let focusChanged = Notification.Name("focusChanged")
 }
 
 public struct TabbedTreeView: View {
     @EnvironmentObject var dataManager: DataManager
-    @State private var tabs: [TabModel] = [TabModel(title: "Main")]
+    @Environment(\.scenePhase) var scenePhase
+    @State private var tabs: [TabModel] = []
     @State private var selectedTabId: UUID?
     @State private var activeCreateVM: TreeViewModel?
     @State private var showingNewTabDialog = false
     @State private var newTabName = ""
     @State private var editingTabId: UUID?
     @State private var keyEventMonitor: Any?
+    @State private var hasRestoredState = false
+    @State private var notificationObservers: [NSObjectProtocol] = []
+    @State private var focusSubscriptions: [UUID: AnyCancellable] = [:]
+    private let stateManager = UIStateManager.shared
+    private let logger = Logger.shared
 
     public init() {}
 
@@ -53,17 +79,44 @@ public struct TabbedTreeView: View {
                 }
         }
         .onAppear {
-            if selectedTabId == nil, let firstTab = tabs.first {
-                selectedTabId = firstTab.id
+            if !hasRestoredState {
+                restoreState()
+                hasRestoredState = true
             }
             setupKeyEventMonitor()
+            setupStateChangeObservers()
+            setupFocusSubscriptions()
         }
         .onDisappear {
             if let monitor = keyEventMonitor {
                 NSEvent.removeMonitor(monitor)
                 keyEventMonitor = nil
             }
+            // Remove all notification observers
+            for observer in notificationObservers {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            notificationObservers.removeAll()
+            // Cancel focus subscriptions
+            focusSubscriptions.values.forEach { $0.cancel() }
+            focusSubscriptions.removeAll()
+            // Save immediately on disappear
+            saveStateImmediately()
         }
+        .onChange(of: scenePhase) { newPhase in
+            switch newPhase {
+            case .background, .inactive:
+                // Save immediately when app goes to background or becomes inactive
+                logger.log("🔄 Scene phase changed to \(String(describing: newPhase)), saving state", category: "TabbedTreeView")
+                saveStateImmediately()
+            case .active:
+                // App is active, normal operation
+                break
+            @unknown default:
+                break
+            }
+        }
+        // Note: avoid .onChange(of: tabs) since Array<TabModel> isn't Equatable in older SwiftUI
     }
 
     @ViewBuilder
@@ -93,6 +146,7 @@ public struct TabbedTreeView: View {
                 .environment(\.isInTabbedView, true)
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
                     updateTabTitle(currentTab)
+                    saveState()
                 }
                 .id(currentTab.id)
         }
@@ -164,6 +218,8 @@ public struct TabbedTreeView: View {
         let newTab = TabModel(title: tabName)
         tabs.append(newTab)
         selectedTabId = newTab.id
+        saveState()
+        setupFocusSubscriptions()
     }
 
     private func closeTab(_ tabId: UUID) {
@@ -182,11 +238,13 @@ public struct TabbedTreeView: View {
                     selectedTabId = firstTab.id
                 }
             }
+            saveState()
+            setupFocusSubscriptions()
         }
     }
 
     private func updateTabTitle(_ tab: TabModel) {
-        if let focusedId = tab.viewModel.focusedNodeId,
+        if let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId,
            let node = tab.viewModel.allNodes.first(where: { $0.id == focusedId }) {
             tab.title = String(node.title.prefix(20))
         } else {
@@ -301,6 +359,177 @@ public struct TabbedTreeView: View {
             }
 
             return event
+        }
+    }
+
+    // MARK: - State Persistence
+
+    private func saveState() {
+        logger.log("📝 Queueing tab state save", category: "TabbedTreeView")
+
+        let tabStates = tabs.map { tab in
+            let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId
+            logger.log("  Tab '\(tab.title)': focusedNodeId = \(focusedId ?? "nil")", category: "TabbedTreeView")
+            return UIState.TabState(
+                id: tab.id,
+                title: tab.title,
+                focusedNodeId: focusedId
+            )
+        }
+
+        let state = UIState(tabs: tabStates)
+        stateManager.saveState(state) // This is now debounced
+    }
+
+    private func saveStateImmediately() {
+        logger.log("💾 Immediate tab state save", category: "TabbedTreeView")
+
+        let tabStates = tabs.map { tab in
+            let focusedId = tab.viewModel.focusedNodeId
+            let selectedId = tab.viewModel.selectedNodeId
+            let savedId = focusedId ?? selectedId
+            logger.log("  Tab '\(tab.title)': focused=\(focusedId ?? "nil"), selected=\(selectedId ?? "nil"), saving=\(savedId ?? "nil")", category: "TabbedTreeView")
+            return UIState.TabState(
+                id: tab.id,
+                title: tab.title,
+                focusedNodeId: savedId
+            )
+        }
+
+        let state = UIState(tabs: tabStates)
+        stateManager.saveStateImmediately(state)
+    }
+
+    private func restoreState() {
+        logger.log("📂 Restoring tab state", category: "TabbedTreeView")
+
+        if let state = stateManager.loadState(), !state.tabs.isEmpty {
+            logger.log("✅ Found saved state with \(state.tabs.count) tabs", category: "TabbedTreeView")
+
+            // Create tabs from saved state
+            tabs = state.tabs.map { tabState in
+                TabModel(
+                    id: tabState.id,
+                    title: tabState.title,
+                    focusedNodeId: tabState.focusedNodeId
+                )
+            }
+
+            // Set each tab's DataManager
+            for tab in tabs {
+                tab.viewModel.setDataManager(dataManager)
+            }
+
+            // Load nodes for all tabs and restore focus
+            Task {
+                for (index, tabState) in state.tabs.enumerated() {
+                    let tab = tabs[index]
+                    await tab.viewModel.loadAllNodes()
+
+                    // Restore focused node if it still exists
+                    if let focusedId = tabState.focusedNodeId {
+                        if tab.viewModel.allNodes.contains(where: { $0.id == focusedId }) {
+                            // Re-set both focused node and selected node after loading
+                            tab.viewModel.focusedNodeId = focusedId
+                            tab.viewModel.selectedNodeId = focusedId
+                            logger.log("✅ Restored focus and selection for tab '\(tab.title)' to node: \(focusedId)", category: "TabbedTreeView")
+                        } else {
+                            // Node was deleted, reset focus
+                            tab.viewModel.focusedNodeId = nil
+                            tab.viewModel.selectedNodeId = nil
+                            logger.log("ℹ️ Focused node deleted for tab '\(tab.title)', reset to root", category: "TabbedTreeView")
+                        }
+                    }
+                }
+            }
+
+            // Select first tab
+            if let firstTab = tabs.first {
+                selectedTabId = firstTab.id
+            }
+        } else {
+            logger.log("ℹ️ No saved state, creating default tab", category: "TabbedTreeView")
+            // No saved state, create default tab
+            let defaultTab = TabModel(title: "Main")
+            tabs = [defaultTab]
+            selectedTabId = defaultTab.id
+        }
+    }
+
+    private func setupStateChangeObservers() {
+        // Remove any existing observers
+        for observer in notificationObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        notificationObservers.removeAll()
+
+        // Listen for tab title changes
+        let titleObserver = NotificationCenter.default.addObserver(
+            forName: .tabStateChanged,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.saveState()
+        }
+        notificationObservers.append(titleObserver)
+
+        // Also listen for app termination (macOS specific)
+        let terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.logger.log("🛑 App terminating, saving state immediately", category: "TabbedTreeView")
+            self.saveStateImmediately()
+        }
+        notificationObservers.append(terminationObserver)
+
+        // Listen for focus changes broadcast by views
+        let focusObserver = NotificationCenter.default.addObserver(
+            forName: .focusChanged,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.logger.log("🧭 FocusChanged notification received — saving state", category: "TabbedTreeView")
+            self.saveState()
+        }
+        notificationObservers.append(focusObserver)
+    }
+
+    private func setupFocusSubscriptions() {
+        // Remove subscriptions for tabs that no longer exist
+        let currentIds = Set(tabs.map { $0.id })
+        for (id, sub) in focusSubscriptions where !currentIds.contains(id) {
+            sub.cancel()
+            focusSubscriptions.removeValue(forKey: id)
+        }
+
+        // Add subscriptions for any new tabs
+        for tab in tabs {
+            guard focusSubscriptions[tab.id] == nil else { continue }
+
+            // Watch BOTH focusedNodeId and selectedNodeId changes
+            let focusCancellable = tab.viewModel.$focusedNodeId
+                .removeDuplicates { $0 == $1 }
+                .sink { _ in
+                    logger.log("🧭 Focus changed in tab '\(tab.title)' — saving immediately", category: "TabbedTreeView")
+                    saveStateImmediately()
+                }
+
+            let selectionCancellable = tab.viewModel.$selectedNodeId
+                .removeDuplicates { $0 == $1 }
+                .sink { _ in
+                    logger.log("🎯 Selection changed in tab '\(tab.title)' — saving immediately", category: "TabbedTreeView")
+                    saveStateImmediately()
+                }
+
+            // Combine both subscriptions
+            let combined = AnyCancellable {
+                focusCancellable.cancel()
+                selectionCancellable.cancel()
+            }
+
+            focusSubscriptions[tab.id] = combined
         }
     }
 }
