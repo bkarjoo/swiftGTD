@@ -6,14 +6,21 @@ import Core
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
     private let logger = Logger.shared
-    
+
     var body: some View {
         Group {
             if authManager.isAuthenticated {
+                #if os(macOS)
+                TabbedTreeView()
+                    .onAppear {
+                        logger.debug("🧭 Showing TabbedTreeView (authenticated)", category: "UI")
+                    }
+                #else
                 TreeView()
                     .onAppear {
                         logger.debug("🧭 Showing TreeView (authenticated)", category: "UI")
                     }
+                #endif
             } else {
                 LoginView()
                     .onAppear {

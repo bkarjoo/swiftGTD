@@ -8,20 +8,33 @@ import Networking
 
 private let logger = Logger.shared
 
+private struct IsInTabbedViewKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isInTabbedView: Bool {
+        get { self[IsInTabbedViewKey.self] }
+        set { self[IsInTabbedViewKey.self] = newValue }
+    }
+}
+
 public struct TreeView_macOS: View {
-    @StateObject private var viewModel = TreeViewModel()
+    @ObservedObject var viewModel: TreeViewModel
     @EnvironmentObject var dataManager: DataManager
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
     @FocusState private var isTreeFocused: Bool
     @State private var keyEventMonitor: Any?
+    @Environment(\.isInTabbedView) private var isInTabbedView
 
-    public init() {}
+    public init(viewModel: TreeViewModel? = nil) {
+        self.viewModel = viewModel ?? TreeViewModel()
+    }
     
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Breadcrumb navigation
                 if viewModel.focusedNodeId != nil {
                     BreadcrumbBar(
                         focusedNode: viewModel.currentFocusedNode,
@@ -37,7 +50,6 @@ public struct TreeView_macOS: View {
                     )
                 }
                 
-                // Main content
                 ScrollViewReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 0) {
@@ -55,14 +67,10 @@ public struct TreeView_macOS: View {
                         .padding(.vertical, 8)
                     }
                     .onChange(of: viewModel.selectedNodeId) { newNodeId in
-                        // Only scroll if we have a selected node
                         guard let nodeId = newNodeId else { return }
 
-                        // Small delay to ensure view hierarchy is updated
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                // Simple approach: always ensure the node is visible
-                                // SwiftUI will only scroll if needed
                                 scrollProxy.scrollTo(nodeId, anchor: nil)
                             }
                         }
@@ -70,7 +78,6 @@ public struct TreeView_macOS: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
-                // Keep keyboard focus without a giant ring by focusing a tiny view
                 .background(alignment: .topLeading) {
                     Color.clear
                         .frame(width: 1, height: 1)
@@ -79,7 +86,6 @@ public struct TreeView_macOS: View {
                         .accessibilityHidden(true)
                 }
                 .onTapGesture {
-                    // Ensure focus when clicking on the tree view area
                     if !isTreeFocused {
                         logger.log("🎯 Setting focus via tap gesture", category: "TreeView")
                         isTreeFocused = true
@@ -87,7 +93,6 @@ public struct TreeView_macOS: View {
                 }
                 .onChange(of: viewModel.isEditing) { isEditing in
                     if !isEditing {
-                        // When editing ends, restore focus to tree
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             logger.log("🎯 Restoring focus to tree after editing", category: "TreeView")
                             self.isTreeFocused = true
@@ -95,7 +100,6 @@ public struct TreeView_macOS: View {
                     }
                 }
                 .onMoveCommand { direction in
-                    // Don't handle arrow keys when in edit mode
                     guard !viewModel.isEditing else { return }
 
                     switch direction {
@@ -113,11 +117,9 @@ public struct TreeView_macOS: View {
                 }
                 .onAppear {
                     setupKeyEventMonitor()
-                    // Set focus when view appears (e.g., after login)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         logger.log("🎯 Setting initial focus to tree view", category: "TreeView")
                         self.isTreeFocused = true
-                        // Also make the window key and first responder
                         if let window = NSApp.keyWindow {
                             window.makeKey()
                             window.makeFirstResponder(window.contentView)
@@ -125,20 +127,23 @@ public struct TreeView_macOS: View {
                     }
                 }
                 .onDisappear {
-                    // Clean up keyboard monitor to prevent leaks
                     if let monitor = keyEventMonitor {
                         NSEvent.removeMonitor(monitor)
                         keyEventMonitor = nil
                     }
                 }
             }
-            .navigationTitle(viewModel.currentFocusedNode?.title ?? "All Nodes")
+            .navigationTitle(isInTabbedView ? "" : (viewModel.currentFocusedNode?.title ?? "All Nodes"))
             .toolbar {
-                TreeToolbar(viewModel: viewModel)
+                if !isInTabbedView {
+                    TreeToolbar(viewModel: viewModel)
+                }
             }
             .sheet(isPresented: $viewModel.showingCreateDialog) {
-                CreateNodeSheet(viewModel: viewModel)
-                    .environmentObject(dataManager)
+                if !isInTabbedView {
+                    CreateNodeSheet(viewModel: viewModel)
+                        .environmentObject(dataManager)
+                }
             }
             .sheet(item: $viewModel.showingNoteEditorForNode) { node in
                 NoteEditorView(node: node) {
@@ -150,7 +155,6 @@ public struct TreeView_macOS: View {
             }
             .sheet(item: $viewModel.showingTagPickerForNode) { node in
                 TagPickerView(node: node) {
-                    // Just reload the single node to get updated tags
                     await viewModel.updateSingleNode(nodeId: node.id)
                 }
             }
@@ -159,13 +163,11 @@ public struct TreeView_macOS: View {
             }
             .onChange(of: viewModel.showingNoteEditorForNode != nil) { isShowing in
                 if isShowing {
-                    // Note editor is showing, remove keyboard monitor
                     if let monitor = keyEventMonitor {
                         NSEvent.removeMonitor(monitor)
                         keyEventMonitor = nil
                     }
                 } else {
-                    // Note editor closed, restore keyboard monitor
                     setupKeyEventMonitor()
                 }
             }
@@ -188,23 +190,12 @@ public struct TreeView_macOS: View {
                 }
             }
             .task {
-                // Set dataManager first, before loading nodes
-                logger.log("📞 Setting dataManager on viewModel (in task)", category: "TreeView")
                 viewModel.setDataManager(dataManager)
-                logger.log("✅ DataManager set, now loading nodes", category: "TreeView")
                 await viewModel.loadAllNodes()
 
-                // Select first root node after loading
                 if let firstRoot = viewModel.getRootNodes().first {
                     viewModel.selectedNodeId = firstRoot.id
                 }
-            }
-            .onAppear {
-                // Also set in onAppear as a backup
-                logger.log("📞 Setting dataManager on viewModel (in onAppear)", category: "TreeView")
-                logger.log("DataManager exists: \(String(describing: dataManager))", category: "TreeView")
-                viewModel.setDataManager(dataManager)
-                logger.log("✅ DataManager set on viewModel", category: "TreeView")
             }
         }
     }
@@ -215,12 +206,10 @@ public struct TreeView_macOS: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Only process keyboard events when tree is focused
             if !self.isTreeFocused {
                 return event
             }
 
-            // Special handling for Escape key when delete alert is showing
             if self.viewModel.showingDeleteAlert && event.keyCode == 53 { // Escape key
                 logger.log("⌨️ Escape pressed - closing delete alert", category: "TreeView")
                 self.viewModel.showingDeleteAlert = false
@@ -228,7 +217,6 @@ public struct TreeView_macOS: View {
                 return nil // Consume the event
             }
 
-            // Don't process keyboard events when any modal is showing
             if viewModel.showingDeleteAlert ||
                viewModel.showingCreateDialog ||
                viewModel.showingDetailsForNode != nil ||
@@ -237,30 +225,22 @@ public struct TreeView_macOS: View {
                 return event
             }
 
-            // Check if first responder is a text field/view - if so, don't intercept
             if let firstResponder = NSApp.keyWindow?.firstResponder {
                 if firstResponder is NSTextView || firstResponder is NSTextField {
-                    // Don't intercept any keys when editing - let TextField handle them
                     return event
                 }
             }
 
-            // Normal navigation mode - only handle space bar since arrows are handled by onMoveCommand
             return self.handleKeyEvent(event) ? nil : event
         }
         logger.log("✅ Key event monitor setup complete", category: "TreeView")
     }
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        // Edit mode is already handled in setupKeyEventMonitor
-        // Arrow keys are now handled by .onMoveCommand
-
-        // Handle Command key combinations
         if event.modifierFlags.contains(.command) {
             switch event.keyCode {
             case 2: // D key - Details
                 if event.modifierFlags.contains(.shift) {
-                    // Cmd+Shift+D - Delete
                     logger.log("⌨️ Cmd+Shift+D pressed - delete node", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
@@ -268,7 +248,6 @@ public struct TreeView_macOS: View {
                     }
                     return true
                 } else {
-                    // Cmd+D - Details
                     logger.log("⌨️ Cmd+D pressed - show details", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
@@ -282,7 +261,6 @@ public struct TreeView_macOS: View {
                 if let selectedId = viewModel.selectedNodeId,
                    let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
                     if selectedNode.nodeType == "smart_folder" {
-                        // Smart folders: focus AND execute their rule
                         logger.log("🧩 Smart folder detected, focusing and executing rule", category: "TreeView")
                         viewModel.focusedNodeId = selectedNode.id
                         viewModel.expandedNodes.insert(selectedNode.id)
@@ -290,7 +268,6 @@ public struct TreeView_macOS: View {
                             await executeSmartFolderRule(for: selectedNode)
                         }
                     } else if selectedNode.nodeType != "note" {
-                        // Regular focus for non-note, non-smart-folder nodes
                         viewModel.focusedNodeId = selectedNode.id
                         viewModel.expandedNodes.insert(selectedNode.id)
                     }
@@ -333,7 +310,6 @@ public struct TreeView_macOS: View {
             }
         }
 
-        // Handle other keys without modifiers
         switch event.keyCode {
         case 47: // Period/Dot key - Toggle task completion
             logger.log("⌨️ Dot pressed - toggle task", category: "TreeView")
@@ -392,7 +368,6 @@ public struct TreeView_macOS: View {
         logger.log("📞 moveToNextSibling called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId else {
             logger.log("⚠️ No current selection, selecting initial node", category: "TreeView")
-            // If in focus mode, select the focused node
             if let focusedId = viewModel.focusedNodeId {
                 logger.log("🔄 Selecting focused node: \(focusedId)", category: "TreeView")
                 viewModel.selectedNodeId = focusedId
@@ -403,7 +378,6 @@ public struct TreeView_macOS: View {
             return
         }
 
-        // If current node is expanded and has children, go to first child
         if viewModel.expandedNodes.contains(currentId) {
             let children = viewModel.getChildren(of: currentId)
             if let firstChild = children.first {
@@ -413,14 +387,12 @@ public struct TreeView_macOS: View {
             }
         }
 
-        // In focus mode, if we're on the focused node and it's collapsed, stop here
         if let focusedId = viewModel.focusedNodeId,
            currentId == focusedId,
            !viewModel.expandedNodes.contains(currentId) {
             return // Can't navigate down from collapsed focused node
         }
 
-        // Otherwise, find next sibling or ancestor's next sibling
         var nodeId = currentId
         while let node = viewModel.allNodes.first(where: { $0.id == nodeId }) {
             let siblings = getSiblings(of: nodeId)
@@ -432,15 +404,12 @@ public struct TreeView_macOS: View {
                 return
             }
 
-            // No next sibling, try parent's next sibling
             if let parentId = node.parentId {
-                // In focus mode, don't go above the focused node
                 if viewModel.focusedNodeId != nil && parentId == viewModel.focusedNodeId {
                     return // Stop at focus boundary
                 }
                 nodeId = parentId
             } else {
-                // Reached root with no next sibling
                 return
             }
         }
@@ -453,10 +422,8 @@ public struct TreeView_macOS: View {
             return
         }
 
-        // Check focus boundary FIRST, before any movement
         if let focusedId = viewModel.focusedNodeId {
             if currentId == focusedId {
-                // We're at the focused node - this is the upper boundary, don't move up
                 return
             }
         }
@@ -464,10 +431,8 @@ public struct TreeView_macOS: View {
         let siblings = getSiblings(of: currentId)
         if let currentIndex = siblings.firstIndex(where: { $0.id == currentId }) {
             if currentIndex > 0 {
-                // Get previous sibling
                 let prevSibling = siblings[currentIndex - 1]
 
-                // If previous sibling is expanded, go to its last visible descendant
                 if viewModel.expandedNodes.contains(prevSibling.id) {
                     let lastDescendant = findLastVisibleDescendant(of: prevSibling.id)
                     logger.log("🧭 Moving to last visible descendant: \(lastDescendant)", category: "TreeView")
@@ -477,7 +442,6 @@ public struct TreeView_macOS: View {
                     viewModel.selectedNodeId = prevSibling.id
                 }
             } else {
-                // No previous sibling, try to go to parent
                 if let node = viewModel.allNodes.first(where: { $0.id == currentId }),
                    let parentId = node.parentId {
                     logger.log("🧭 Moving up to parent: \(parentId)", category: "TreeView")
@@ -491,7 +455,6 @@ public struct TreeView_macOS: View {
         logger.log("📞 findLastVisibleDescendant called for: \(nodeId)", category: "TreeView")
         var lastId = nodeId
 
-        // Keep going to the last child while the node is expanded
         while viewModel.expandedNodes.contains(lastId) {
             let children = viewModel.getChildren(of: lastId)
             if let lastChild = children.last {
@@ -513,23 +476,19 @@ public struct TreeView_macOS: View {
             return
         }
 
-        // If it's a note node, open the note editor
         if currentNode.nodeType == "note" {
             logger.log("📝 Opening note editor for: \(currentNode.title)", category: "TreeView")
             viewModel.showingNoteEditorForNode = currentNode
             return
         }
 
-        // Check if node has children or is expandable (smart folders always are)
         let hasChildren = !viewModel.getChildren(of: currentId).isEmpty || currentNode.nodeType == "smart_folder"
 
         if hasChildren {
-            // If collapsed, expand it
             if !viewModel.expandedNodes.contains(currentId) {
                 logger.log("🔄 Expanding node: \(currentId)", category: "TreeView")
                 viewModel.expandedNodes.insert(currentId)
 
-                // If it's a smart folder, execute its rule to populate it
                 if currentNode.nodeType == "smart_folder" {
                     logger.log("🧩 Expanding smart folder: \(currentNode.title)", category: "TreeView")
                     Task {
@@ -537,11 +496,9 @@ public struct TreeView_macOS: View {
                     }
                 }
             } else {
-                // If already expanded and not in focus mode, focus on it
                 if viewModel.focusedNodeId != currentId {
                     logger.log("🎯 Right arrow focusing on expanded node: \(currentNode.title)", category: "TreeView")
                     viewModel.focusedNodeId = currentId
-                    // Keep the selection on the focused node
                     viewModel.selectedNodeId = currentId
                 }
             }
@@ -556,29 +513,24 @@ public struct TreeView_macOS: View {
             return
         }
 
-        // If node is expanded, collapse it
         if viewModel.expandedNodes.contains(currentId) {
             logger.log("🔄 Collapsing node: \(currentId)", category: "TreeView")
             viewModel.expandedNodes.remove(currentId)
             return
         }
 
-        // If we're on the focused node in focus mode and it's collapsed
         if viewModel.focusedNodeId == currentId {
-            // Move focus to parent (exit focus on this node, focus on parent)
             if let parentId = currentNode.parentId {
                 logger.log("🎯 Left arrow moving focus from \(currentNode.title) to parent", category: "TreeView")
                 viewModel.focusedNodeId = parentId
                 viewModel.selectedNodeId = parentId
             } else {
-                // If no parent, exit focus mode entirely
                 logger.log("🎯 Left arrow exiting focus mode from root node", category: "TreeView")
                 viewModel.focusedNodeId = nil
             }
             return
         }
 
-        // Normal behavior - move to parent
         if let parentId = currentNode.parentId {
             logger.log("🧭 Moving to parent: \(parentId)", category: "TreeView")
             viewModel.selectedNodeId = parentId
@@ -608,12 +560,10 @@ public struct TreeView_macOS: View {
             return true // No focus mode, all nodes are valid
         }
 
-        // Check if node is the focused node itself
         if nodeId == focusedId {
             return true
         }
 
-        // Check if node is a descendant of the focused node
         var currentId = nodeId
         while let node = viewModel.allNodes.first(where: { $0.id == currentId }),
               let parentId = node.parentId {
@@ -627,7 +577,6 @@ public struct TreeView_macOS: View {
     }
 
     private func isNodeAboveFocused(_ nodeId: String, focusedId: String) -> Bool {
-        // Check if nodeId is an ancestor of focusedId
         var currentId = focusedId
         while let node = viewModel.allNodes.first(where: { $0.id == currentId }),
               let parentId = node.parentId {
@@ -643,13 +592,11 @@ public struct TreeView_macOS: View {
         logger.log("📞 Instantiating template: \(template.title)", category: "TreeView")
 
         do {
-            // Generate a name for the instantiated copy
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "MMM d"
             let dateString = dateFormatter.string(from: Date())
             let name = "\(template.title) - \(dateString)"
 
-            // Call the API to instantiate the template
             let api = APIClient.shared
             let newNode = try await api.instantiateTemplate(
                 templateId: template.id,
@@ -659,7 +606,6 @@ public struct TreeView_macOS: View {
 
             logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeView")
 
-            // Trigger a refresh
             await viewModel.loadAllNodes()
         } catch {
             logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "TreeView")
@@ -671,21 +617,18 @@ public struct TreeView_macOS: View {
         logger.log("   Node ID: \(node.id)", category: "TreeView")
         logger.log("   Node type: \(node.nodeType)", category: "TreeView")
 
-        // Log smart folder metadata if available
         if let smartFolderData = node.smartFolderData {
             logger.log("   Rule ID: \(smartFolderData.ruleId ?? "nil")", category: "TreeView")
             logger.log("   Auto-refresh: \(smartFolderData.autoRefresh ?? true)", category: "TreeView")
         }
 
         do {
-            // Execute the smart folder rule via API
             logger.log("🌐 Making API call to execute smart folder...", category: "TreeView")
             let api = APIClient.shared
             let resultNodes = try await api.executeSmartFolderRule(smartFolderId: node.id)
 
             logger.log("✅ Smart folder executed successfully, returned \(resultNodes.count) nodes", category: "TreeView")
 
-            // Log sample results for debugging
             for (index, node) in resultNodes.prefix(3).enumerated() {
                 logger.log("   Result \(index + 1): \(node.title) (type: \(node.nodeType), id: \(node.id))", category: "TreeView")
             }
@@ -693,10 +636,8 @@ public struct TreeView_macOS: View {
                 logger.log("   ... and \(resultNodes.count - 3) more nodes", category: "TreeView")
             }
 
-            // Update UI with smart folder contents
             logger.log("📝 Updating children for smart folder", category: "TreeView")
             await MainActor.run {
-                // Store the results as children of the smart folder
                 viewModel.nodeChildren[node.id] = resultNodes
                 logger.log("✅ UI updated with smart folder results", category: "TreeView")
             }
@@ -710,7 +651,6 @@ public struct TreeView_macOS: View {
     }
 }
 
-// MARK: - Subviews
 
 private struct BreadcrumbBar: View {
     let focusedNode: Node?
@@ -790,7 +730,6 @@ private struct TreeContent: View {
     var body: some View {
         if let focusedId = viewModel.focusedNodeId,
            let focusedNode = viewModel.allNodes.first(where: { $0.id == focusedId }) {
-            // Focus mode - show focused node and children
             TreeNodeView(
                 node: focusedNode,
                 children: viewModel.getChildren(of: focusedNode.id),
@@ -812,7 +751,6 @@ private struct TreeContent: View {
                 onUpdateSingleNode: viewModel.updateSingleNode
             )
         } else {
-            // Normal mode - show root nodes
             ForEach(viewModel.getRootNodes()) { node in
                 TreeNodeView(
                     node: node,
@@ -839,21 +777,23 @@ private struct TreeContent: View {
     }
 }
 
-private struct TreeToolbar: ToolbarContent {
+public struct TreeToolbar: ToolbarContent {
     @ObservedObject var viewModel: TreeViewModel
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @EnvironmentObject var dataManager: DataManager
+
+    public init(viewModel: TreeViewModel) {
+        self.viewModel = viewModel
+    }
     
-    var body: some ToolbarContent {
+    public var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             HStack(spacing: 8) {
-                // Network status indicator
                 NetworkStatusIndicator(lastSyncDate: dataManager.lastSyncDate)
                 
-                // Refresh button
                 Button(action: {
                     Task {
-                        await viewModel.loadAllNodes()
+                        await viewModel.refreshNodes()
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
@@ -904,14 +844,12 @@ private struct TreeToolbar: ToolbarContent {
     }
 }
 
-// MARK: - Keyboard Shortcuts Help
 
 private struct KeyboardShortcutsHelpView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
-            // Title bar
             HStack {
                 Text("Keyboard Shortcuts")
                     .font(.title2)
@@ -927,7 +865,6 @@ private struct KeyboardShortcutsHelpView: View {
 
             Divider()
 
-            // Shortcuts list
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     shortcutSection("Navigation", shortcuts: [
@@ -986,11 +923,15 @@ private struct KeyboardShortcutsHelpView: View {
     }
 }
 
-private struct CreateNodeSheet: View {
+public struct CreateNodeSheet: View {
     @ObservedObject var viewModel: TreeViewModel
     @Environment(\.dismiss) var dismiss
     @FocusState private var isTitleFocused: Bool
-    
+
+    public init(viewModel: TreeViewModel) {
+        self.viewModel = viewModel
+    }
+
     private var createNodeTypeTitle: String {
         switch viewModel.createNodeType {
         case "folder": return "Folder"
@@ -1001,46 +942,56 @@ private struct CreateNodeSheet: View {
         default: return "Node"
         }
     }
-    
-    var body: some View {
-        // Compact sheet: single row with TextField on left and buttons on right
-        HStack(spacing: 8) {
-            TextField("", text: $viewModel.createNodeTitle)
+
+    public var body: some View {
+        VStack(spacing: 16) {
+            // Title
+            Text("Create New \(createNodeTypeTitle)")
+                .font(.headline)
+                .padding(.top, 4)
+
+            // Input field
+            TextField(fieldPlaceholder, text: $viewModel.createNodeTitle)
                 .textFieldStyle(.roundedBorder)
                 .focused($isTitleFocused)
-                .onSubmit {
-                    Task {
-                        await viewModel.createNode(
-                            type: viewModel.createNodeType,
-                            title: viewModel.createNodeTitle,
-                            parentId: viewModel.focusedNodeId
-                        )
-                        dismiss()
-                    }
-                }
+                .onSubmit { submit() }
+                .frame(minWidth: 300)
 
-            Spacer(minLength: 8)
-
-            Button("Cancel") { dismiss() }
-
-            Button("Create") {
-                Task {
-                    await viewModel.createNode(
-                        type: viewModel.createNodeType,
-                        title: viewModel.createNodeTitle,
-                        parentId: viewModel.focusedNodeId
-                    )
-                    dismiss()
-                }
+            // Divider + buttons
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Create") { submit() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(viewModel.createNodeTitle.isEmpty)
             }
-            .disabled(viewModel.createNodeTitle.isEmpty)
-            .keyboardShortcut(.defaultAction)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(minWidth: 360, minHeight: 70)
-        .onAppear {
-            DispatchQueue.main.async { isTitleFocused = true }
+        .padding(20)
+        .frame(minWidth: 360)
+        .onAppear { DispatchQueue.main.async { isTitleFocused = true } }
+    }
+
+    private var fieldPlaceholder: String {
+        switch viewModel.createNodeType {
+        case "note": return "Note Title"
+        case "task": return "Task Name"
+        case "folder": return "Folder Name"
+        case "template": return "Template Name"
+        case "smart_folder": return "Smart Folder Name"
+        default: return "Title"
+        }
+    }
+
+    private func submit() {
+        guard !viewModel.createNodeTitle.isEmpty else { return }
+        Task {
+            await viewModel.createNode(
+                type: viewModel.createNodeType,
+                title: viewModel.createNodeTitle,
+                parentId: viewModel.focusedNodeId
+            )
+            dismiss()
         }
     }
 }

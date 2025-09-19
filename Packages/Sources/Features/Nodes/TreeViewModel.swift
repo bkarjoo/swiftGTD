@@ -8,7 +8,8 @@ import Combine
 private let logger = Logger.shared
 
 @MainActor
-public class TreeViewModel: ObservableObject {
+public class TreeViewModel: ObservableObject, Identifiable {
+    public let id = UUID()
     @Published var allNodes: [Node] = []
     @Published var nodeChildren: [String: [Node]] = [:]
     @Published var isLoading = false
@@ -25,10 +26,11 @@ public class TreeViewModel: ObservableObject {
     @Published var showingDetailsForNode: Node? = nil
     @Published var showingTagPickerForNode: Node? = nil
     @Published var showingHelpWindow = false
-    
+
     var dataManager: DataManager?
     private var cancellables = Set<AnyCancellable>()
-    
+    private var didLoad = false
+
     public init() {}
     
     func setDataManager(_ manager: DataManager) {
@@ -113,9 +115,25 @@ public class TreeViewModel: ObservableObject {
     }
     
     func loadAllNodes() async {
+        guard !didLoad else {
+            logger.log("⏩ Skipping loadAllNodes - already loaded", category: "TreeViewModel")
+            return
+        }
+
         logger.log("🔵 TreeViewModel.loadAllNodes() called", category: "TreeViewModel")
         isLoading = true
+        didLoad = true
 
+        await performLoad()
+    }
+
+    func refreshNodes() async {
+        logger.log("🔄 TreeViewModel.refreshNodes() called - forcing refresh", category: "TreeViewModel")
+        isLoading = true
+        await performLoad()
+    }
+
+    private func performLoad() async {
         do {
             // Use DataManager if available, otherwise fall back to API directly
             let nodes: [Node]
