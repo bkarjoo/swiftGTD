@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Models
 import Networking
+import Core
 
 @MainActor
 public class AuthManager: ObservableObject {
@@ -11,29 +12,52 @@ public class AuthManager: ObservableObject {
     @Published public var errorMessage: String?
     
     private let api = APIClient.shared
-    private let tokenKey = "auth_token"
+    private let logger = Logger.shared
+    private let keychain = KeychainManager.shared
     
     public init() {
         loadStoredToken()
     }
     
     private func loadStoredToken() {
-        if let token = UserDefaults.standard.string(forKey: tokenKey) {
+        // Load token from Keychain
+        if let token = keychain.getToken() {
+            logger.log("🔑 Found stored token in Keychain, attempting auto-login", category: "AuthManager")
             api.setAuthToken(token)
             Task {
                 await validateToken()
             }
+        } else {
+            logger.log("🔑 No stored token found in Keychain", category: "AuthManager")
         }
     }
     
     private func validateToken() async {
         do {
+            logger.log("🔑 Validating stored token...", category: "AuthManager")
             let user = try await api.getCurrentUser()
             self.currentUser = user
             self.isAuthenticated = true
+            logger.log("✅ Token valid, auto-login successful for user: \(user.email)", category: "AuthManager")
         } catch {
-            // Token is invalid, clear it
-            logout()
+            logger.log("❌ Token validation failed: \(error)", category: "AuthManager")
+            // Don't clear the token immediately - it might be a network issue
+            // Just mark as not authenticated for now
+            self.isAuthenticated = false
+
+            // Only clear token if it's definitely invalid (401 unauthorized)
+            switch error {
+            case APIError.unauthorized:
+                logger.log("🔑 Token is unauthorized, clearing stored token", category: "AuthManager")
+                logout()
+            case APIError.httpError(401, _):
+                logger.log("🔑 Got 401 error, clearing stored token", category: "AuthManager")
+                logout()
+            default:
+                // Keep the token for other errors (network issues, etc.)
+                logger.log("⚠️ Keeping token despite error (might be network issue)", category: "AuthManager")
+                break
+            }
         }
     }
     
@@ -46,10 +70,18 @@ public class AuthManager: ObservableObject {
 
             // Only persist token if Remember Me is checked
             if rememberMe {
-                UserDefaults.standard.set(response.accessToken, forKey: tokenKey)
+                logger.log("🔑 Remember Me checked, saving token to Keychain", category: "AuthManager")
+                let saved = keychain.saveToken(response.accessToken)
+
+                if saved {
+                    logger.log("✅ Token successfully saved to Keychain", category: "AuthManager")
+                } else {
+                    logger.log("❌ Failed to save token to Keychain!", category: "AuthManager")
+                }
             } else {
                 // Clear any existing stored token
-                UserDefaults.standard.removeObject(forKey: tokenKey)
+                logger.log("🔑 Remember Me not checked, clearing any stored token", category: "AuthManager")
+                keychain.deleteToken()
             }
 
             api.setAuthToken(response.accessToken)
@@ -74,7 +106,8 @@ public class AuthManager: ObservableObject {
             // Then login to get token
             let loginResponse = try await api.login(email: email, password: password)
             // Always remember new users (they just signed up, so keep them logged in)
-            UserDefaults.standard.set(loginResponse.accessToken, forKey: tokenKey)
+            let saved = keychain.saveToken(loginResponse.accessToken)
+            logger.log(saved ? "✅ Signup: Token saved to Keychain" : "❌ Signup: Failed to save token", category: "AuthManager")
             api.setAuthToken(loginResponse.accessToken)
             // Get current user info
             let user = try await api.getCurrentUser()
@@ -88,7 +121,7 @@ public class AuthManager: ObservableObject {
     }
     
     public func logout() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
+        keychain.deleteToken()
         api.setAuthToken(nil)
         currentUser = nil
         isAuthenticated = false
