@@ -98,7 +98,19 @@ public class TreeViewModel: ObservableObject, Identifiable {
     private func updateNodesFromDataManager(_ nodes: [Node]) {
         logger.log("📞 updateNodesFromDataManager called with \(nodes.count) nodes", category: "TreeViewModel")
         self.allNodes = nodes
-        
+
+        // Preserve smart folder results before rebuilding
+        var smartFolderResults: [String: [Node]] = [:]
+        for (nodeId, children) in nodeChildren {
+            // Check if this is a smart folder with results
+            if let node = allNodes.first(where: { $0.id == nodeId }),
+               node.nodeType == "smart_folder",
+               !children.isEmpty {
+                smartFolderResults[nodeId] = children
+                logger.log("🧩 Preserving smart folder results for: \(node.title) (\(children.count) nodes)", category: "TreeViewModel")
+            }
+        }
+
         // Build parent-child relationships
         var childrenMap: [String: [Node]] = [:]
         for node in nodes {
@@ -109,12 +121,17 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 childrenMap[parentId]?.append(node)
             }
         }
-        
+
         // Sort children by sortOrder
         for (parentId, children) in childrenMap {
             childrenMap[parentId] = children.sorted { $0.sortOrder < $1.sortOrder }
         }
-        
+
+        // Restore smart folder results
+        for (nodeId, results) in smartFolderResults {
+            childrenMap[nodeId] = results
+        }
+
         self.nodeChildren = childrenMap
         logger.log("✅ Built parent-child relationships for \(childrenMap.count) parents", category: "TreeViewModel")
     }
