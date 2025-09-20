@@ -348,10 +348,18 @@ public struct TreeView_macOS: View {
             viewModel.showingHelpWindow = true
             return true
 
+        case 12: // Q key - Quick add to default folder
+            logger.log("⌨️ Q pressed - quick add to default folder", category: "TreeView")
+            Task {
+                await handleQuickAddToDefaultFolder()
+            }
+            return true
+
         case 17 where !event.modifierFlags.contains(.command): // T key (without Cmd)
             logger.log("⌨️ T pressed - creating new task", category: "TreeView")
             viewModel.createNodeType = "task"
             viewModel.createNodeTitle = ""
+            viewModel.createNodeParentId = nil  // Clear any previous parent ID
             viewModel.showingCreateDialog = true
             return true
 
@@ -359,6 +367,7 @@ public struct TreeView_macOS: View {
             logger.log("⌨️ N pressed - creating new note", category: "TreeView")
             viewModel.createNodeType = "note"
             viewModel.createNodeTitle = ""
+            viewModel.createNodeParentId = nil  // Clear any previous parent ID
             viewModel.showingCreateDialog = true
             return true
 
@@ -366,6 +375,7 @@ public struct TreeView_macOS: View {
             logger.log("⌨️ F pressed - creating new folder", category: "TreeView")
             viewModel.createNodeType = "folder"
             viewModel.createNodeTitle = ""
+            viewModel.createNodeParentId = nil  // Clear any previous parent ID
             viewModel.showingCreateDialog = true
             return true
 
@@ -619,6 +629,35 @@ public struct TreeView_macOS: View {
     }
 
 
+    private func handleQuickAddToDefaultFolder() async {
+        do {
+            // Get the default folder ID
+            guard let defaultNodeId = try await APIClient.shared.getDefaultNode() else {
+                logger.log("⚠️ No default folder set", level: .warning, category: "TreeView")
+                // Could show an alert here if desired
+                return
+            }
+
+            // Find the default folder in the current nodes
+            guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
+                logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TreeView")
+                return
+            }
+
+            logger.log("✅ Quick add to default folder: \(defaultFolder.title)", category: "TreeView")
+
+            // Set up for creating a task in the default folder
+            viewModel.createNodeType = "task"
+            viewModel.createNodeTitle = ""
+            viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
+
+            // Show the create dialog
+            viewModel.showingCreateDialog = true
+        } catch {
+            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "TreeView")
+        }
+    }
+
     private func executeSmartFolderRule(for node: Node) async {
         logger.log("🧩 Executing smart folder rule for: \(node.title)", category: "TreeView")
         logger.log("   Node ID: \(node.id)", category: "TreeView")
@@ -819,30 +858,35 @@ public struct TreeToolbar: ToolbarContent {
                 Button("Folder") {
                     viewModel.createNodeType = "folder"
                     viewModel.createNodeTitle = ""
+                    viewModel.createNodeParentId = nil  // Clear any previous parent ID
                     viewModel.showingCreateDialog = true
                 }
                 
                 Button("Task") {
                     viewModel.createNodeType = "task"
                     viewModel.createNodeTitle = ""
+                    viewModel.createNodeParentId = nil  // Clear any previous parent ID
                     viewModel.showingCreateDialog = true
                 }
                 
                 Button("Note") {
                     viewModel.createNodeType = "note"
                     viewModel.createNodeTitle = ""
+                    viewModel.createNodeParentId = nil  // Clear any previous parent ID
                     viewModel.showingCreateDialog = true
                 }
                 
                 Button("Template") {
                     viewModel.createNodeType = "template"
                     viewModel.createNodeTitle = ""
+                    viewModel.createNodeParentId = nil  // Clear any previous parent ID
                     viewModel.showingCreateDialog = true
                 }
                 
                 Button("Smart Folder") {
                     viewModel.createNodeType = "smart_folder"
                     viewModel.createNodeTitle = ""
+                    viewModel.createNodeParentId = nil  // Clear any previous parent ID
                     viewModel.showingCreateDialog = true
                 }
             } label: {
@@ -995,11 +1039,15 @@ public struct CreateNodeSheet: View {
     private func submit() {
         guard !viewModel.createNodeTitle.isEmpty else { return }
         Task {
+            // Use createNodeParentId if set (for quick add), otherwise use focusedNodeId
+            let parentId = viewModel.createNodeParentId ?? viewModel.focusedNodeId
             await viewModel.createNode(
                 type: viewModel.createNodeType,
                 title: viewModel.createNodeTitle,
-                parentId: viewModel.focusedNodeId
+                parentId: parentId
             )
+            // Clear the createNodeParentId after use
+            viewModel.createNodeParentId = nil
             dismiss()
         }
     }

@@ -4,6 +4,7 @@ import Combine
 import Core
 import Models
 import Services
+import Networking
 
 @MainActor
 public class TabModel: ObservableObject, Identifiable {
@@ -350,16 +351,19 @@ public struct TabbedTreeView: View {
             case 17 where !event.modifierFlags.contains(.command): // T - task
                 viewModel.createNodeType = "task"
                 viewModel.createNodeTitle = ""
+                viewModel.createNodeParentId = nil  // Clear any previous parent ID
                 self.activeCreateVM = viewModel
                 return nil
             case 3 where !event.modifierFlags.contains(.command): // F - folder
                 viewModel.createNodeType = "folder"
                 viewModel.createNodeTitle = ""
+                viewModel.createNodeParentId = nil  // Clear any previous parent ID
                 self.activeCreateVM = viewModel
                 return nil
             case 45: // N - note
                 viewModel.createNodeType = "note"
                 viewModel.createNodeTitle = ""
+                viewModel.createNodeParentId = nil  // Clear any previous parent ID
                 self.activeCreateVM = viewModel
                 return nil
             case 47: // . - toggle task
@@ -372,6 +376,12 @@ public struct TabbedTreeView: View {
             case 4: // H - Help
                 logger.log("⌨️ H pressed - showing help", category: "TabbedTreeView")
                 viewModel.showingHelpWindow = true
+                return nil
+            case 12: // Q - Quick add to default folder
+                logger.log("⌨️ Q pressed - quick add to default folder", category: "TabbedTreeView")
+                Task {
+                    await handleQuickAddToDefaultFolder(viewModel: viewModel)
+                }
                 return nil
             default:
                 break
@@ -482,6 +492,35 @@ public struct TabbedTreeView: View {
             let defaultTab = TabModel(title: "Main")
             tabs = [defaultTab]
             selectedTabId = defaultTab.id
+        }
+    }
+
+    private func handleQuickAddToDefaultFolder(viewModel: TreeViewModel) async {
+        do {
+            // Get the default folder ID
+            guard let defaultNodeId = try await APIClient.shared.getDefaultNode() else {
+                logger.log("⚠️ No default folder set", level: .warning, category: "TabbedTreeView")
+                // Could show an alert here if desired
+                return
+            }
+
+            // Find the default folder in the current nodes
+            guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
+                logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TabbedTreeView")
+                return
+            }
+
+            logger.log("✅ Quick add to default folder: \(defaultFolder.title)", category: "TabbedTreeView")
+
+            // Set up for creating a task in the default folder
+            viewModel.createNodeType = "task"
+            viewModel.createNodeTitle = ""
+            viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
+
+            // Show the create dialog
+            self.activeCreateVM = viewModel
+        } catch {
+            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "TabbedTreeView")
         }
     }
 

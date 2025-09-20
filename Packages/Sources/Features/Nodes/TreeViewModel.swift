@@ -20,6 +20,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     @Published var showingCreateDialog = false
     @Published var createNodeType = ""
     @Published var createNodeTitle = ""
+    @Published var createNodeParentId: String? = nil
     @Published var showingDeleteAlert = false
     @Published var nodeToDelete: Node? = nil
     @Published var showingNoteEditorForNode: Node? = nil
