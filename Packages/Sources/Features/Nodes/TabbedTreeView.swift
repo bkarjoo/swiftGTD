@@ -369,6 +369,10 @@ public struct TabbedTreeView: View {
                     viewModel.toggleTaskStatus(selectedNode)
                     return nil
                 }
+            case 4: // H - Help
+                logger.log("⌨️ H pressed - showing help", category: "TabbedTreeView")
+                viewModel.showingHelpWindow = true
+                return nil
             default:
                 break
             }
