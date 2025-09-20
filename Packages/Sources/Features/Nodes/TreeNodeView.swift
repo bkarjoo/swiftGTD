@@ -567,7 +567,7 @@ public struct TreeNodeView: View {
     private func formatDateHelper(_ date: Date) -> String {
         let calendar = Calendar.current
         let now = Date()
-        
+
         if calendar.isDateInToday(date) {
             return "Today"
         } else if calendar.isDateInTomorrow(date) {
@@ -575,7 +575,14 @@ public struct TreeNodeView: View {
         } else if calendar.isDateInYesterday(date) {
             return "Yesterday"
         } else {
-            let days = calendar.dateComponents([.day], from: now, to: date).day ?? 0
+            // Calculate the difference in calendar days, not time intervals
+            // Start of today
+            let startOfToday = calendar.startOfDay(for: now)
+            // Start of the target date
+            let startOfTargetDate = calendar.startOfDay(for: date)
+            // Calculate days between the start of days
+            let days = calendar.dateComponents([.day], from: startOfToday, to: startOfTargetDate).day ?? 0
+
             if days > 0 && days <= 7 {
                 return "\(days)d"
             } else if days < 0 && days >= -7 {
