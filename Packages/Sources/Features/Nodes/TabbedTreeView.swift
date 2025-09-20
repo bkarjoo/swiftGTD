@@ -288,6 +288,10 @@ public struct TabbedTreeView: View {
                         return nil
                     }
 
+                case 8: // C - Copy node names
+                    logger.log("⌨️ Cmd+C pressed - copy node names to clipboard", category: "TabbedTreeView")
+                    copyNodeNamesToClipboard(viewModel: viewModel)
+                    return nil
                 case 17: // T - tags/new tab
                     if event.modifierFlags.contains(.shift) {
                         // Cmd+Shift+T - New tab
@@ -546,6 +550,40 @@ public struct TabbedTreeView: View {
             let defaultTab = TabModel(title: "Main")
             tabs = [defaultTab]
             selectedTabId = defaultTab.id
+        }
+    }
+
+    private func copyNodeNamesToClipboard(viewModel: TreeViewModel) {
+        logger.log("📋 Copying node names to clipboard", category: "TabbedTreeView")
+
+        var textToCopy = ""
+
+        // Get the nodes to copy based on focus state
+        if let focusedId = viewModel.focusedNodeId {
+            // In focus mode - copy the focused node and its direct children
+            if let focusedNode = viewModel.allNodes.first(where: { $0.id == focusedId }) {
+                textToCopy = focusedNode.title + "\n"
+
+                // Get direct children only (not nested)
+                let children = viewModel.getChildren(of: focusedId)
+                for child in children {
+                    textToCopy += "- " + child.title + "\n"
+                }
+            }
+        } else {
+            // Not in focus mode - copy all root nodes
+            textToCopy = "All Nodes\n"
+            let rootNodes = viewModel.getRootNodes()
+            for node in rootNodes {
+                textToCopy += "- " + node.title + "\n"
+            }
+        }
+
+        // Copy to clipboard
+        if !textToCopy.isEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(textToCopy, forType: .string)
+            logger.log("✅ Copied \(textToCopy.components(separatedBy: "\n").count - 1) node names to clipboard", category: "TabbedTreeView")
         }
     }
 

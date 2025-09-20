@@ -256,6 +256,11 @@ public struct TreeView_macOS: View {
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.command) {
             switch event.keyCode {
+            case 8: // C key - Copy node names
+                logger.log("⌨️ Cmd+C pressed - copy node names to clipboard", category: "TreeView")
+                copyNodeNamesToClipboard()
+                return true
+
             case 2: // D key - Details
                 if event.modifierFlags.contains(.shift) {
                     logger.log("⌨️ Cmd+Shift+D pressed - delete node", category: "TreeView")
@@ -658,6 +663,40 @@ public struct TreeView_macOS: View {
         }
     }
 
+    private func copyNodeNamesToClipboard() {
+        logger.log("📋 Copying node names to clipboard", category: "TreeView")
+
+        var textToCopy = ""
+
+        // Get the nodes to copy based on focus state
+        if let focusedId = viewModel.focusedNodeId {
+            // In focus mode - copy the focused node and its direct children
+            if let focusedNode = viewModel.allNodes.first(where: { $0.id == focusedId }) {
+                textToCopy = focusedNode.title + "\n"
+
+                // Get direct children only (not nested)
+                let children = viewModel.getChildren(of: focusedId)
+                for child in children {
+                    textToCopy += "- " + child.title + "\n"
+                }
+            }
+        } else {
+            // Not in focus mode - copy all root nodes
+            textToCopy = "All Nodes\n"
+            let rootNodes = viewModel.getRootNodes()
+            for node in rootNodes {
+                textToCopy += "- " + node.title + "\n"
+            }
+        }
+
+        // Copy to clipboard
+        if !textToCopy.isEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(textToCopy, forType: .string)
+            logger.log("✅ Copied \(textToCopy.components(separatedBy: "\n").count - 1) node names to clipboard", category: "TreeView")
+        }
+    }
+
     private func executeSmartFolderRule(for node: Node) async {
         logger.log("🧩 Executing smart folder rule for: \(node.title)", category: "TreeView")
         logger.log("   Node ID: \(node.id)", category: "TreeView")
@@ -936,6 +975,7 @@ private struct KeyboardShortcutsHelpView: View {
 
                     shortcutSection("Node Actions", shortcuts: [
                         (".", "Toggle task completion"),
+                        ("⌘C", "Copy node names to clipboard"),
                         ("⌘D", "Show node details"),
                         ("⌘F", "Focus on node / Execute smart folder"),
                         ("⌘T", "Manage tags"),
