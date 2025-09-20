@@ -524,6 +524,13 @@ public struct TreeView_macOS: View {
                     viewModel.selectedNodeId = currentId
                 }
             }
+        } else {
+            // Node has no children - still focus it
+            if viewModel.focusedNodeId != currentId {
+                logger.log("🎯 Right arrow focusing on node without children: \(currentNode.title)", category: "TreeView")
+                viewModel.focusedNodeId = currentId
+                viewModel.selectedNodeId = currentId
+            }
         }
     }
 
