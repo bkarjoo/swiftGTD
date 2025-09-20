@@ -552,10 +552,11 @@ public struct TreeView_macOS: View {
             if let parentId = currentNode.parentId {
                 logger.log("🎯 Left arrow moving focus from \(currentNode.title) to parent", category: "TreeView")
                 viewModel.focusedNodeId = parentId
-                viewModel.selectedNodeId = parentId
+                // Keep selection on current node, don't move it to parent
             } else {
                 logger.log("🎯 Left arrow exiting focus mode from root node", category: "TreeView")
                 viewModel.focusedNodeId = nil
+                // Keep selection on current node
             }
             return
         }
