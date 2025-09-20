@@ -52,6 +52,12 @@ The codebase uses a modular package structure with strict dependency rules. All 
 - Views use `@StateObject` or `@ObservedObject` for ViewModels
 - DataManager is passed as `@EnvironmentObject`
 
+**Data Flow Rules (CRITICAL)**
+- **Single Source of Truth**: DataManager.nodes is the ONLY source for node data
+- **No Direct API Calls in Views**: ALL API calls must go through DataManager or other Services
+- **TreeViewModel subscribes to DataManager**: TreeViewModel.allNodes should reflect DataManager.nodes, never maintain separate state
+- **Intent-Based Actions**: Views dispatch intents to ViewModels, ViewModels orchestrate operations
+
 **Platform-Specific Views**
 When significant platform differences exist:
 - `TreeView.swift` - Router that selects platform
@@ -59,9 +65,11 @@ When significant platform differences exist:
 - `TreeView_macOS.swift` - macOS implementation
 
 **Node Tree Management**
-- `TreeViewModel` manages node hierarchy with `allNodes` and `nodeChildren` dictionaries
+- `DataManager.nodes` is the single source of truth for all node data
+- `TreeViewModel` subscribes to DataManager and derives `nodeChildren` dictionary for hierarchy
 - `TreeNodeView` recursively renders nodes with expand/collapse state
 - Focus mode allows drilling into specific subtrees
+- DO NOT maintain separate node state in ViewModels
 
 **Offline-First Architecture**
 - `CacheManager` provides persistent local storage
@@ -70,14 +78,16 @@ When significant platform differences exist:
 
 ### Critical Implementation Details
 
-**Template Instantiation Flow**
+**Template Instantiation Flow (NEEDS REFACTOR)**
 1. User presses Cmd+U on a template node
-2. `instantiateTemplate()` in TreeViewModel calls API
-3. Full tree refresh via `refreshNodes()` (not `loadAllNodes()` which has guard)
-4. Target node expanded and new node focused
+2. Should call DataManager.instantiateTemplate() - NOT direct API
+3. DataManager updates its nodes, TreeViewModel reflects changes
+4. Use `refreshNodes()` not `loadAllNodes()` (which has didLoad guard)
+5. Target node expanded and new node focused
 
-**Default Folder Feature**
+**Default Folder Feature (NEEDS REFACTOR)**
 - Settings API: `GET/PUT /settings/default-node`
+- Should be accessed through DataManager, not direct API calls
 - Q key creates task in default folder using `createNodeParentId`
 - CreateNodeSheet uses `createNodeParentId ?? focusedNodeId`
 
@@ -94,10 +104,13 @@ When significant platform differences exist:
 ## Common Pitfalls to Avoid
 
 1. **Never commit without user permission** - User will explicitly ask "commit"
-2. **loadAllNodes() has guard** - Use `refreshNodes()` for forced refresh
+2. **loadAllNodes() has guard** - Use `refreshNodes()` for forced refresh, rename to `initialLoad()` for clarity
 3. **TabbedTreeView intercepts all keys** - Must add handler or return nil to prevent beep
 4. **Public access required** - All cross-module types need `public` modifier
 5. **Form compilation issues** - Use `List` with `.listStyle` instead of `Form`
+6. **No inline API calls** - NEVER call `APIClient.shared` directly from views. ALL API calls must go through Services layer
+7. **Two sources of truth** - Don't maintain separate node state. DataManager.nodes is the ONLY source
+8. **Direct state mutations** - Don't patch ViewModel state directly. Use DataManager operations
 
 ## Logging Requirements
 

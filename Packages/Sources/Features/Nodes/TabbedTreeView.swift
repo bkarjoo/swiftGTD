@@ -333,6 +333,60 @@ public struct TabbedTreeView: View {
                         }
                     }
                     return nil
+                case 18: // 1 - Switch to tab 1
+                    logger.log("⌨️ Cmd+1 pressed - switch to tab 1", category: "TabbedTreeView")
+                    if tabs.count >= 1 {
+                        selectedTabId = tabs[0].id
+                    }
+                    return nil
+                case 19: // 2 - Switch to tab 2
+                    logger.log("⌨️ Cmd+2 pressed - switch to tab 2", category: "TabbedTreeView")
+                    if tabs.count >= 2 {
+                        selectedTabId = tabs[1].id
+                    }
+                    return nil
+                case 20: // 3 - Switch to tab 3
+                    logger.log("⌨️ Cmd+3 pressed - switch to tab 3", category: "TabbedTreeView")
+                    if tabs.count >= 3 {
+                        selectedTabId = tabs[2].id
+                    }
+                    return nil
+                case 21: // 4 - Switch to tab 4
+                    logger.log("⌨️ Cmd+4 pressed - switch to tab 4", category: "TabbedTreeView")
+                    if tabs.count >= 4 {
+                        selectedTabId = tabs[3].id
+                    }
+                    return nil
+                case 23: // 5 - Switch to tab 5
+                    logger.log("⌨️ Cmd+5 pressed - switch to tab 5", category: "TabbedTreeView")
+                    if tabs.count >= 5 {
+                        selectedTabId = tabs[4].id
+                    }
+                    return nil
+                case 22: // 6 - Switch to tab 6
+                    logger.log("⌨️ Cmd+6 pressed - switch to tab 6", category: "TabbedTreeView")
+                    if tabs.count >= 6 {
+                        selectedTabId = tabs[5].id
+                    }
+                    return nil
+                case 26: // 7 - Switch to tab 7
+                    logger.log("⌨️ Cmd+7 pressed - switch to tab 7", category: "TabbedTreeView")
+                    if tabs.count >= 7 {
+                        selectedTabId = tabs[6].id
+                    }
+                    return nil
+                case 28: // 8 - Switch to tab 8
+                    logger.log("⌨️ Cmd+8 pressed - switch to tab 8", category: "TabbedTreeView")
+                    if tabs.count >= 8 {
+                        selectedTabId = tabs[7].id
+                    }
+                    return nil
+                case 25: // 9 - Switch to tab 9
+                    logger.log("⌨️ Cmd+9 pressed - switch to tab 9", category: "TabbedTreeView")
+                    if tabs.count >= 9 {
+                        selectedTabId = tabs[8].id
+                    }
+                    return nil
                 default:
                     break
                 }
