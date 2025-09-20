@@ -145,7 +145,7 @@ public struct TreeNodeView: View {
                             // Focus on this node
                             focusedNodeId = node.id
                             expandedNodes.insert(node.id)
-                            NotificationCenter.default.post(name: .focusChanged, object: nil)
+                            NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
                         }) {
                             Label("Focus", systemImage: "arrow.right.circle")
                         }
@@ -634,7 +634,7 @@ public struct TreeNodeView: View {
         let draggedIndex = siblings.firstIndex(where: { $0.id == draggedNode.id })
         let targetIndex = siblings.firstIndex(where: { $0.id == targetNode.id })
 
-        guard let draggedIdx = draggedIndex, let targetIdx = targetIndex else {
+        guard let _ = draggedIndex, let targetIdx = targetIndex else {
             return false
         }
 

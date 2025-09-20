@@ -172,7 +172,8 @@ private struct TreeContent: View {
                 onToggleTaskStatus: viewModel.toggleTaskStatus,
                 onRefresh: { await viewModel.loadAllNodes() },
                 onUpdateNodeTitle: viewModel.updateNodeTitle,
-                onUpdateSingleNode: viewModel.updateSingleNode
+                onUpdateSingleNode: viewModel.updateSingleNode,
+                onNodeDrop: viewModel.performReorder
             )
         } else {
             // Normal mode - show root nodes
@@ -195,7 +196,8 @@ private struct TreeContent: View {
                     onToggleTaskStatus: viewModel.toggleTaskStatus,
                     onRefresh: { await viewModel.loadAllNodes() },
                     onUpdateNodeTitle: viewModel.updateNodeTitle,
-                    onUpdateSingleNode: viewModel.updateSingleNode
+                    onUpdateSingleNode: viewModel.updateSingleNode,
+                    onNodeDrop: viewModel.performReorder
                 )
             }
         }
