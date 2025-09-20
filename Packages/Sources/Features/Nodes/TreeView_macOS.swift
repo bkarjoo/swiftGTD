@@ -195,6 +195,11 @@ public struct TreeView_macOS: View {
                     Text("Delete this node and all its children?")
                 }
             }
+            .alert("Drag & Drop", isPresented: $viewModel.showingDropAlert) {
+                Button("OK") { }
+            } message: {
+                Text(viewModel.dropAlertMessage)
+            }
             .task {
                 viewModel.setDataManager(dataManager)
                 await viewModel.loadAllNodes()
@@ -765,7 +770,8 @@ private struct TreeContent: View {
                 onToggleTaskStatus: viewModel.toggleTaskStatus,
                 onRefresh: { await viewModel.loadAllNodes() },
                 onUpdateNodeTitle: viewModel.updateNodeTitle,
-                onUpdateSingleNode: viewModel.updateSingleNode
+                onUpdateSingleNode: viewModel.updateSingleNode,
+                onNodeDrop: viewModel.performReorder
             )
         } else {
             ForEach(viewModel.getRootNodes()) { node in
@@ -787,7 +793,8 @@ private struct TreeContent: View {
                     onToggleTaskStatus: viewModel.toggleTaskStatus,
                     onRefresh: { await viewModel.loadAllNodes() },
                     onUpdateNodeTitle: viewModel.updateNodeTitle,
-                    onUpdateSingleNode: viewModel.updateSingleNode
+                    onUpdateSingleNode: viewModel.updateSingleNode,
+                    onNodeDrop: viewModel.performReorder
                 )
             }
         }

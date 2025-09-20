@@ -1,4 +1,14 @@
 import Foundation
+import UniformTypeIdentifiers
+import CoreTransferable
+
+// MARK: - Transferable Conformance for Drag & Drop
+
+extension Node: Transferable {
+    public static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .data)
+    }
+}
 
 // Extensions for offline support
 public extension Node {

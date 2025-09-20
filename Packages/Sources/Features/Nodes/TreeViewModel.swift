@@ -27,6 +27,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
     @Published var showingTagPickerForNode: Node? = nil
     @Published var showingHelpWindow = false
 
+    // Drag and drop
+    @Published var showingDropAlert = false
+    @Published var dropAlertMessage = ""
+
     var dataManager: DataManager?
     private var cancellables = Set<AnyCancellable>()
     private var didLoad = false
@@ -356,6 +360,90 @@ public class TreeViewModel: ObservableObject, Identifiable {
             // For now, we could show a temporary local update for better UX
             // Offline feedback is handled by DataManager's queue
         }
+    }
+
+    // MARK: - Drag and Drop
+
+    func performReorder(draggedNode: Node, targetNode: Node, position: DropPosition, message: String) async {
+        // Don't show alert anymore, just log
+        logger.log("🎯 Reordering nodes: \(message)", category: "TreeViewModel")
+
+        // Get all siblings
+        let siblings: [Node]
+        if let parentId = draggedNode.parentId {
+            siblings = nodeChildren[parentId] ?? []
+        } else {
+            // Root nodes
+            siblings = getRootNodes()
+        }
+
+        // Create a mutable array for reordering
+        var orderedSiblings = siblings
+
+        // Find current positions
+        guard let draggedIndex = orderedSiblings.firstIndex(where: { $0.id == draggedNode.id }),
+              let targetIndex = orderedSiblings.firstIndex(where: { $0.id == targetNode.id }) else {
+            logger.log("❌ Could not find nodes in siblings array", category: "TreeViewModel")
+            return
+        }
+
+        // Remove the dragged node
+        orderedSiblings.remove(at: draggedIndex)
+
+        // Calculate new insertion index based on position
+        let insertIndex: Int
+        if position == .above {
+            // Insert before target
+            insertIndex = targetIndex > draggedIndex ? targetIndex - 1 : targetIndex
+        } else {
+            // Insert after target
+            insertIndex = targetIndex >= draggedIndex ? targetIndex : targetIndex + 1
+        }
+
+        // Insert at new position
+        orderedSiblings.insert(draggedNode, at: insertIndex)
+
+        // Now recalculate sort orders
+        // We'll use increments of 100 to leave room for future insertions
+        var updates: [(nodeId: String, sortOrder: Int)] = []
+        for (index, node) in orderedSiblings.enumerated() {
+            let newSortOrder = (index + 1) * 100
+            if node.sortOrder != newSortOrder {
+                updates.append((nodeId: node.id, sortOrder: newSortOrder))
+                logger.log("📝 Node '\(node.title)' will get sort order \(newSortOrder)", category: "TreeViewModel")
+            }
+        }
+
+        // Send updates to backend
+        guard let dataManager = dataManager else {
+            logger.log("❌ No dataManager available", category: "TreeViewModel")
+            return
+        }
+
+        // Update each node's sort order
+        for update in updates {
+            if let nodeIndex = allNodes.firstIndex(where: { $0.id == update.nodeId }) {
+                let node = allNodes[nodeIndex]
+
+                let nodeUpdate = NodeUpdate(
+                    title: node.title,
+                    parentId: node.parentId,
+                    sortOrder: update.sortOrder,
+                    noteData: node.noteData.map { NoteDataUpdate(body: $0.body) }
+                )
+
+                // This will update the backend and trigger a refresh
+                _ = await dataManager.updateNode(node.id, update: nodeUpdate)
+            }
+        }
+
+        logger.log("✅ Reordering complete, updated \(updates.count) nodes", category: "TreeViewModel")
+    }
+
+    func showDropAlert(message: String) {
+        dropAlertMessage = message
+        showingDropAlert = true
+        logger.log("🎯 Showing drop alert: \(dropAlertMessage)", category: "TreeViewModel")
     }
 
     func createNode(type: String, title: String, parentId: String?) async {

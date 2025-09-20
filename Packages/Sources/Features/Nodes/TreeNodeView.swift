@@ -3,8 +3,15 @@ import Core
 import Models
 import Services
 import Networking
+import UniformTypeIdentifiers
 
 private let logger = Logger.shared
+
+public enum DropPosition {
+    case none
+    case above
+    case below
+}
 
 public struct TreeNodeView: View {
     let node: Node
@@ -25,11 +32,13 @@ public struct TreeNodeView: View {
     let onRefresh: () async -> Void
     let onUpdateNodeTitle: (String, String) async -> Void
     let onUpdateSingleNode: (String) async -> Void
+    let onNodeDrop: ((Node, Node, DropPosition, String) async -> Void)?  // Pass nodes, position, and message
 
     @State private var showingDetailsForNode: Node?
     @State private var showingTagPickerForNode: Node?
     @State private var editingText: String = ""
     @FocusState private var isTextFieldFocused: Bool
+    @State private var dropTargetPosition: DropPosition = .none
     
     private var isExpanded: Bool {
         expandedNodes.contains(node.id)
@@ -80,10 +89,36 @@ public struct TreeNodeView: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Drop indicator line above
+            if dropTargetPosition == .above {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(height: 2)
+                    .padding(.leading, CGFloat(level * 20))
+            }
+
             // Create the main row content
             nodeRowContent
                 .id(node.id)  // Add ID for ScrollViewReader to find this node
                 .contentShape(Rectangle()) // Make entire row tappable
+                .draggable(node) { // Make the node draggable
+                    HStack {
+                        Image(systemName: nodeIcon)
+                            .font(.system(size: fontSize))
+                            .foregroundColor(nodeIconColor)
+                        Text(node.title)
+                            .font(.system(size: fontSize))
+                    }
+                    .padding(8)
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(8)
+                }
+                .onDrop(of: [UTType.data], delegate: NodeDropDelegate(
+                    targetNode: node,
+                    parentId: node.parentId,
+                    dropPosition: $dropTargetPosition,
+                    onDrop: handleDrop
+                ))
                 .contextMenu {
                     Button(action: {
                         logger.log("🔘 Details selected for node: \(node.id) - \(node.title)", category: "TreeNodeView")
@@ -153,6 +188,14 @@ public struct TreeNodeView: View {
                     }
                 }
             
+            // Drop indicator line below
+            if dropTargetPosition == .below {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(height: 2)
+                    .padding(.leading, CGFloat(level * 20))
+            }
+
             // Children (recursive)
             if isExpanded {
                 ForEach(children) { childNode in
@@ -174,7 +217,8 @@ public struct TreeNodeView: View {
                         onToggleTaskStatus: onToggleTaskStatus,
                         onRefresh: onRefresh,
                         onUpdateNodeTitle: onUpdateNodeTitle,
-                        onUpdateSingleNode: onUpdateSingleNode
+                        onUpdateSingleNode: onUpdateSingleNode,
+                        onNodeDrop: onNodeDrop
                     )
                 }
             }
@@ -562,6 +606,65 @@ public struct TreeNodeView: View {
         return dueDateColorHelper(date)
     }
     
+    private func handleDrop(draggedNode: Node, targetNode: Node, position: DropPosition) -> Bool {
+        // Only allow drop if they have the same parent (are siblings)
+        guard draggedNode.parentId == targetNode.parentId else {
+            logger.log("❌ Cannot drop - not siblings", category: "TreeNodeView")
+            return false
+        }
+
+        // Don't allow dropping on self
+        guard draggedNode.id != targetNode.id else {
+            logger.log("❌ Cannot drop on self", category: "TreeNodeView")
+            return false
+        }
+
+        logger.log("🎯 Reordering \(draggedNode.title) to \(position == .above ? "before" : "after") \(targetNode.title)", category: "TreeNodeView")
+
+        // Get all siblings
+        let siblings: [Node]
+        if let parentId = draggedNode.parentId {
+            siblings = nodeChildren[parentId] ?? []
+        } else {
+            // Root nodes
+            siblings = getChildren("")
+        }
+
+        // Find positions
+        let draggedIndex = siblings.firstIndex(where: { $0.id == draggedNode.id })
+        let targetIndex = siblings.firstIndex(where: { $0.id == targetNode.id })
+
+        guard let draggedIdx = draggedIndex, let targetIdx = targetIndex else {
+            return false
+        }
+
+        // Calculate message
+        let message: String
+        if position == .above {
+            if targetIdx == 0 {
+                message = "You moved '\(draggedNode.title)' to the beginning"
+            } else {
+                let prevNode = siblings[targetIdx - 1]
+                message = "You moved '\(draggedNode.title)' between '\(prevNode.title)' and '\(targetNode.title)'"
+            }
+        } else {
+            // Below
+            if targetIdx == siblings.count - 1 {
+                message = "You moved '\(draggedNode.title)' to the end"
+            } else {
+                let nextNode = siblings[targetIdx + 1]
+                message = "You moved '\(draggedNode.title)' between '\(targetNode.title)' and '\(nextNode.title)'"
+            }
+        }
+
+        // Call the callback to perform the reorder and show alert
+        Task {
+            await onNodeDrop?(draggedNode, targetNode, position, message)
+        }
+
+        return true
+    }
+
     private func dueDateColorHelper(_ date: Date) -> Color {
         let calendar = Calendar.current
         let now = Date()
@@ -575,5 +678,62 @@ public struct TreeNodeView: View {
         } else {
             return .secondary // Future
         }
+    }
+}
+
+// MARK: - Drop Delegate for Reordering
+
+struct NodeDropDelegate: DropDelegate {
+    let targetNode: Node
+    let parentId: String?
+    let dropPosition: Binding<DropPosition>
+    let onDrop: (Node, Node, DropPosition) -> Bool
+
+    func performDrop(info: DropInfo) -> Bool {
+        dropPosition.wrappedValue = .none
+
+        guard let itemProvider = info.itemProviders(for: [UTType.data]).first else {
+            return false
+        }
+
+        itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.data.identifier) { data, error in
+            guard let data = data,
+                  let draggedNode = try? JSONDecoder().decode(Node.self, from: data) else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                let position = getDropPosition(info: info)
+                _ = onDrop(draggedNode, targetNode, position)
+            }
+        }
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        let position = getDropPosition(info: info)
+        dropPosition.wrappedValue = position
+    }
+
+    func dropExited(info: DropInfo) {
+        dropPosition.wrappedValue = .none
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        let position = getDropPosition(info: info)
+        dropPosition.wrappedValue = position
+        return DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        // Check if dragged item has same parent
+        return true  // We'll validate properly in performDrop
+    }
+
+    private func getDropPosition(info: DropInfo) -> DropPosition {
+        let location = info.location.y
+        // If drop is in upper half, show indicator above
+        // If in lower half, show below
+        return location < 20 ? .above : .below
     }
 }
