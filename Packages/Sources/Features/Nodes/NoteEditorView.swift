@@ -3,6 +3,11 @@ import Core
 import Models
 import Services
 import Networking
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 private let logger = Logger.shared
 
@@ -178,6 +183,21 @@ public struct NoteEditorView: View {
                 .hidden()
 
                 Button("") {
+                    if editMode == .inactive {
+                        logger.log("📋 Copying note content to clipboard", category: "NoteEditor")
+                        #if os(macOS)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(noteContent, forType: .string)
+                        #else
+                        UIPasteboard.general.string = noteContent
+                        #endif
+                        logger.log("✅ Note content copied to clipboard", category: "NoteEditor")
+                    }
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                .hidden()
+
+                Button("") {
                     if editMode == .active {
                         // Discard changes and return to view mode
                         noteContent = originalContent
@@ -203,6 +223,7 @@ public struct NoteEditorView: View {
                 shortcutRow("⌘E", "Enter edit mode")
                 shortcutRow("⌘R", "Discard & return to view")
                 shortcutRow("⌘S", "Save changes")
+                shortcutRow("⌘C", "Copy note to clipboard")
                 shortcutRow("⌘H", "Show/hide help")
                 shortcutRow("Esc", "Close editor")
             }
