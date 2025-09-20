@@ -322,6 +322,16 @@ public struct TabbedTreeView: View {
                         }
                         return nil
                     }
+                case 32: // U - Use template
+                    logger.log("⌨️ Cmd+U pressed - use template", category: "TabbedTreeView")
+                    if let selectedId = viewModel.selectedNodeId,
+                       let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
+                       selectedNode.nodeType == "template" {
+                        Task {
+                            await viewModel.instantiateTemplate(selectedNode)
+                        }
+                    }
+                    return nil
                 default:
                     break
                 }

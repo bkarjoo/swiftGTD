@@ -475,4 +475,47 @@ public class TreeViewModel: ObservableObject, Identifiable {
             logger.log("❌ Failed to create node", category: "TreeViewModel")
         }
     }
+
+    // MARK: - Template Instantiation
+
+    func instantiateTemplate(_ template: Node) async {
+        logger.log("📞 Instantiating template: \(template.title)", category: "TreeViewModel")
+
+        do {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MMM d"
+            let dateString = dateFormatter.string(from: Date())
+            let name = "\(template.title) - \(dateString)"
+
+            // Use the template's target node if it has one
+            let targetNodeId = template.templateData?.targetNodeId
+
+            let api = APIClient.shared
+            let newNode = try await api.instantiateTemplate(
+                templateId: template.id,
+                name: name,
+                parentId: targetNodeId  // Pass the target node to the API
+            )
+
+            logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeViewModel")
+
+            // Do a full tree refresh to capture everything
+            await refreshNodes()
+
+            // After refresh, expand target node and focus the new node
+            await MainActor.run {
+                // Expand the target node if it exists
+                if let targetId = targetNodeId {
+                    self.expandedNodes.insert(targetId)
+                }
+
+                // Select and focus the newly created node
+                self.selectedNodeId = newNode.id
+                self.focusedNodeId = newNode.id
+            }
+        } catch {
+            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "TreeViewModel")
+        }
+    }
+
 }

@@ -322,7 +322,7 @@ public struct TreeView_macOS: View {
                    let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
                    selectedNode.nodeType == "template" {
                     Task {
-                        await instantiateTemplate(selectedNode)
+                        await viewModel.instantiateTemplate(selectedNode)
                     }
                 }
                 return true
@@ -610,29 +610,6 @@ public struct TreeView_macOS: View {
         return false
     }
 
-    private func instantiateTemplate(_ template: Node) async {
-        logger.log("📞 Instantiating template: \(template.title)", category: "TreeView")
-
-        do {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MMM d"
-            let dateString = dateFormatter.string(from: Date())
-            let name = "\(template.title) - \(dateString)"
-
-            let api = APIClient.shared
-            let newNode = try await api.instantiateTemplate(
-                templateId: template.id,
-                name: name,
-                parentId: nil
-            )
-
-            logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeView")
-
-            await viewModel.loadAllNodes()
-        } catch {
-            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "TreeView")
-        }
-    }
 
     private func executeSmartFolderRule(for node: Node) async {
         logger.log("🧩 Executing smart folder rule for: \(node.title)", category: "TreeView")
