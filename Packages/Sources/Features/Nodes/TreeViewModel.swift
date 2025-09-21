@@ -912,10 +912,15 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
 
         case "smart_folder":
-            // Right arrow on smart folder executes it
-            Task {
-                await executeSmartFolder(node)
+            // Smart folders: execute and expand, but don't focus
+            if !expandedNodes.contains(nodeId) {
+                // Execute and expand to show results
+                Task {
+                    await executeSmartFolder(node)
+                }
+                expandNode(nodeId)
             }
+            // Already expanded - do nothing on subsequent right arrows
             return
 
         default:
