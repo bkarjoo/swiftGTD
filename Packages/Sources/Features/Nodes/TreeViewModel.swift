@@ -44,10 +44,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     public init() {}
     
     func setDataManager(_ manager: DataManager) {
-        logger.log("🔧 TreeViewModel.setDataManager() called", category: "TreeViewModel")
-        logger.log("📊 DataManager passed in: \(String(describing: manager))", category: "TreeViewModel")
         self.dataManager = manager
-        logger.log("✅ DataManager set. dataManager is now: \(self.dataManager != nil ? "NOT NIL" : "NIL")", category: "TreeViewModel")
         
         // Subscribe to DataManager's nodes changes
         manager.$nodes
@@ -59,7 +56,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
             .store(in: &cancellables)
         
-        logger.log("✅ DataManager set: \(dataManager != nil)", category: "TreeViewModel")
     }
     
     var currentFocusedNode: Node? {
@@ -68,22 +64,17 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
     
     func getRootNodes() -> [Node] {
-        logger.log("📞 getRootNodes called", category: "TreeViewModel")
         let roots = allNodes.filter { $0.parentId == nil || $0.parentId == "" }
             .sorted { $0.sortOrder < $1.sortOrder }
-        logger.log("✅ Found \(roots.count) root nodes", category: "TreeViewModel")
         return roots
     }
     
     func getChildren(of nodeId: String) -> [Node] {
-        logger.log("📞 getChildren called for: \(nodeId)", category: "TreeViewModel")
         let children = nodeChildren[nodeId] ?? []
-        logger.log("✅ Found \(children.count) children", category: "TreeViewModel")
         return children
     }
     
     func getParentChain(for node: Node) -> [Node] {
-        logger.log("📞 getParentChain called for: \(node.id)", category: "TreeViewModel")
         var chain: [Node] = []
         var currentNode: Node? = node
         
@@ -96,12 +87,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
         
-        logger.log("✅ Parent chain has \(chain.count) nodes", category: "TreeViewModel")
         return chain
     }
     
     private func updateNodesFromDataManager(_ nodes: [Node]) {
-        logger.log("📞 updateNodesFromDataManager called with \(nodes.count) nodes", category: "TreeViewModel")
         // No need to set allNodes anymore, it's computed from dataManager
 
         // Preserve smart folder results before rebuilding
@@ -139,7 +128,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
 
         self.nodeChildren = childrenMap
-        logger.log("✅ Built parent-child relationships for \(childrenMap.count) parents", category: "TreeViewModel")
 
         // Validate consistency in debug builds
         #if DEBUG
@@ -256,10 +244,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
             logger.log("📊 Received \(nodes.count) nodes from DataManager", category: "TreeViewModel")
 
             await MainActor.run {
-                logger.log("🔄 Updating UI with \(nodes.count) nodes", category: "TreeViewModel")
                 self.updateNodesFromDataManager(nodes)
                 self.isLoading = false
-                logger.log("✅ TreeViewModel.performLoad() completed", category: "TreeViewModel")
             }
         } catch {
             logger.error("❌ Error loading nodes: \(error)", category: "TreeViewModel")
@@ -275,14 +261,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
     
     func deleteNode(_ node: Node) {
-        logger.log("📞 deleteNode called for: \(node.id) - \(node.title)", category: "TreeViewModel")
         nodeToDelete = node
         showingDeleteAlert = true
-        logger.log("🔄 Delete alert shown", category: "TreeViewModel")
     }
     
     func confirmDeleteNode() async {
-        logger.log("📞 confirmDeleteNode called", category: "TreeViewModel")
         guard let node = nodeToDelete, let dataManager = dataManager else {
             logger.log("❌ No node to delete or no dataManager", category: "TreeViewModel")
             return
@@ -374,21 +357,16 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
     
     func toggleTaskStatus(_ node: Node) {
-        logger.log("📞 toggleTaskStatus called with node: \(node.id) - \(node.title)", category: "TreeViewModel")
-        logger.log("DataManager available: \(dataManager != nil)", category: "TreeViewModel")
         
         guard let dataManager = dataManager else { 
             logger.error("❌ No dataManager available - THIS IS THE PROBLEM!", category: "TreeViewModel")
             return 
         }
         
-        logger.log("Creating Task to call DataManager", category: "TreeViewModel")
         
         Task {
-            logger.log("Inside Task, calling dataManager.toggleNodeCompletion", category: "TreeViewModel")
             // Update backend - the DataManager subscription will handle the UI update
             if let updatedNode = await dataManager.toggleNodeCompletion(node) {
-                logger.log("✅ Received updated node from DataManager", category: "TreeViewModel")
                 // The subscription to DataManager.nodes will automatically update our view
             } else {
                 logger.error("❌ toggleNodeCompletion returned nil", category: "TreeViewModel")
@@ -421,7 +399,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // DataManager will update its nodes array, which triggers our subscription
         // and automatically updates our view through updateNodesFromDataManager
         if let updatedNode = await dataManager.updateNode(nodeId, update: update) {
-            logger.log("✅ Node title updated successfully: \(updatedNode.title)", category: "TreeViewModel")
             // The subscription to DataManager.nodes will handle all UI updates
         } else {
             logger.log("⚠️ Node update returned nil - might be offline and queued", category: "TreeViewModel")
@@ -522,7 +499,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             #endif
         }
 
-        logger.log("✅ Reordering complete, updated \(updates.count) nodes", category: "TreeViewModel")
     }
 
     func showDropAlert(message: String) {
@@ -546,7 +522,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             parentId: parentId,
             tags: []
         ) {
-            logger.log("✅ Node created successfully: \(createdNode.id)", category: "TreeViewModel")
 
             // The DataManager subscription will update allNodes and nodeChildren automatically
             // We only need to expand the parent if needed
@@ -577,7 +552,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Centralized keyboard event handling
     func handleKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
-        logger.log("⌨️ handleKeyPress - keyCode: \(keyCode), modifiers: \(modifiers)", category: "TreeViewModel")
 
         // Handle Command key combinations
         if modifiers.contains(.command) {
@@ -801,7 +775,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        logger.log("🔄 Navigating \(direction) from node: \(currentId)", category: "TreeViewModel")
 
         switch direction {
         case .up:
@@ -886,7 +859,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
     /// Set the selected node
     func setSelectedNode(_ nodeId: String?) {
         selectedNodeId = nodeId
-        logger.log("✅ Selected node set to: \(nodeId ?? "nil")", category: "TreeViewModel")
     }
 
     /// Set the focused node
@@ -902,13 +874,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
     /// Expand a node
     func expandNode(_ nodeId: String) {
         expandedNodes.insert(nodeId)
-        logger.log("📂 Expanded node: \(nodeId)", category: "TreeViewModel")
     }
 
     /// Collapse a node
     func collapseNode(_ nodeId: String) {
         expandedNodes.remove(nodeId)
-        logger.log("📁 Collapsed node: \(nodeId)", category: "TreeViewModel")
     }
 
     /// Toggle expansion state

@@ -30,8 +30,6 @@ public class DataManager: ObservableObject {
     ) {
         self.api = apiClient
         self.networkMonitor = networkMonitor ?? NetworkMonitorFactory.shared
-        logger.log("📞 Initializing DataManager", category: "DataManager")
-        logger.log("✅ DataManager initialized with APIClient", category: "DataManager")
         
         // Monitor network status - handle both NetworkMonitor and TestableNetworkMonitor
         if let observableMonitor = networkMonitor as? NetworkMonitor {
@@ -43,7 +41,6 @@ public class DataManager: ObservableObject {
                     self.isOffline = !isConnected
                     
                     if isConnected {
-                        logger.log("📡 DataManager: Network is available", category: "DataManager")
                         
                         // Trigger auto-sync if coming back online with pending operations
                         if wasOffline && !self.offlineQueue.pendingOperations.isEmpty {
@@ -53,7 +50,6 @@ public class DataManager: ObservableObject {
                             }
                         }
                     } else {
-                        logger.log("📡 DataManager: Network is unavailable", category: "DataManager")
                     }
                 }
                 .store(in: &cancellables)
@@ -67,7 +63,6 @@ public class DataManager: ObservableObject {
                     self.isOffline = !isConnected
                     
                     if isConnected {
-                        logger.log("📡 [TEST] DataManager: Network is available", category: "DataManager")
                         
                         // Trigger auto-sync if coming back online with pending operations
                         if wasOffline && !self.offlineQueue.pendingOperations.isEmpty {
@@ -77,7 +72,6 @@ public class DataManager: ObservableObject {
                             }
                         }
                     } else {
-                        logger.log("📡 [TEST] DataManager: Network is unavailable", category: "DataManager")
                     }
                 }
                 .store(in: &cancellables)
@@ -85,35 +79,22 @@ public class DataManager: ObservableObject {
     }
     
     public func loadNodes(parentId: String? = nil) async {
-        logger.log("📞 Starting to load nodes, parentId: \(parentId ?? "nil")", category: "DataManager")
         isLoading = true
         errorMessage = nil
         
         do {
-            logger.log("📞 Calling API to get nodes", category: "DataManager")
             nodes = try await api.getNodes(parentId: parentId)
-            logger.log("✅ Successfully loaded \(nodes.count) nodes", category: "DataManager")
-            
-            // Log node types for debugging
-            let nodeTypes = Dictionary(grouping: nodes, by: { $0.nodeType })
-            for (type, typeNodes) in nodeTypes {
-                logger.log("   - \(type): \(typeNodes.count) nodes", category: "DataManager")
-            }
         } catch {
             logger.log("❌ Failed to load nodes: \(error)", category: "DataManager")
             errorMessage = error.localizedDescription
         }
         
         isLoading = false
-        logger.log("✅ Load nodes completed, isLoading set to false", category: "DataManager")
     }
     
     public func loadTags() async {
-        logger.log("📞 Starting to load tags", category: "DataManager")
         do {
-            logger.log("📞 Calling API to get tags", category: "DataManager")
             tags = try await api.getTags()
-            logger.log("✅ Successfully loaded \(tags.count) tags", category: "DataManager")
         } catch {
             logger.log("❌ Failed to load tags: \(error)", category: "DataManager")
             errorMessage = error.localizedDescription
@@ -121,7 +102,6 @@ public class DataManager: ObservableObject {
     }
     
     public func createNode(title: String, type: String, content: String? = nil, parentId: String? = nil, tags: [Tag]? = nil) async -> Node? {
-        logger.log("📞 createNode called with title: '\(title)', type: '\(type)', parentId: \(parentId ?? "nil")", category: "DataManager")
         
         if networkMonitor.isConnected {
             // Online - create via API
@@ -137,7 +117,6 @@ public class DataManager: ObservableObject {
                     createdNode = try await api.createNote(title: title, parentId: parentId, body: content ?? "")
                 case "template", "smart_folder":
                     // Use generic node creation with the actual type
-                    logger.log("📞 Creating \(type) node", category: "DataManager")
                     createdNode = try await api.createGenericNode(title: title, nodeType: type, parentId: parentId)
                 default:
                     logger.log("❌ Unknown node type: \(type)", category: "DataManager")
@@ -148,7 +127,6 @@ public class DataManager: ObservableObject {
                 // Add to local nodes array and update cache in one go
                 nodes.append(createdNode)
                 nodes.sort { $0.sortOrder < $1.sortOrder }
-                logger.log("✅ Created node: \(createdNode.title) (id: \(createdNode.id))", category: "DataManager")
                 
                 // Update cache without triggering another update
                 await cacheManager.saveNodes(nodes)
@@ -226,7 +204,6 @@ public class DataManager: ObservableObject {
             // Save to cache without triggering another update
             await cacheManager.saveNodes(nodes)
             
-            logger.log("✅ Created node locally: \(newNode.title) (temp id: \(tempId))", category: "DataManager")
             errorMessage = "Created offline - will sync when connected"
             
             return newNode
@@ -234,7 +211,6 @@ public class DataManager: ObservableObject {
     }
     
     public func updateNode(_ nodeId: String, update: NodeUpdate) async -> Node? {
-        logger.log("📞 updateNode called with id: \(nodeId), title: '\(update.title)'", category: "DataManager")
 
         // Find the node to update
         guard let nodeIndex = nodes.firstIndex(where: { $0.id == nodeId }) else {
@@ -247,16 +223,13 @@ public class DataManager: ObservableObject {
         if networkMonitor.isConnected {
             // Online - update via API
             do {
-                logger.log("📞 Calling API to update node", category: "DataManager")
                 let updatedNode = try await api.updateNode(id: nodeId, update: update)
-                logger.log("✅ API call successful", category: "DataManager")
 
                 // Clear any previous error on success
                 errorMessage = nil
 
                 // Update local array
                 nodes[nodeIndex] = updatedNode
-                logger.log("✅ Updated node in local array", category: "DataManager")
 
                 // Update cache
                 await cacheManager.saveNodes(nodes)
@@ -302,21 +275,17 @@ public class DataManager: ObservableObject {
             // Update cache with optimistic change
             await cacheManager.saveNodes(nodes)
 
-            logger.log("✅ Update operation queued for offline sync with optimistic update", category: "DataManager")
 
             return updatedNode
         }
     }
     
     public func deleteNode(_ node: Node) async {
-        logger.log("📞 deleteNode called with node: \(node.id) - '\(node.title)'", category: "DataManager")
         
         if networkMonitor.isConnected {
             // Online - delete via API
             do {
-                logger.log("📞 Calling API to delete node", category: "DataManager")
                 try await api.deleteNode(id: node.id)
-                logger.log("✅ API call successful", category: "DataManager")
                 
                 // Clear any previous error on success
                 errorMessage = nil
@@ -338,7 +307,6 @@ public class DataManager: ObservableObject {
                 let oldCount = nodes.count
                 nodes.removeAll { nodesToRemove.contains($0.id) }
                 let newCount = nodes.count
-                logger.log("✅ Removed \(nodesToRemove.count) nodes from local array (count: \(oldCount) -> \(newCount))", category: "DataManager")
                 
                 // Update cache
                 await cacheManager.saveNodes(nodes)
@@ -379,7 +347,6 @@ public class DataManager: ObservableObject {
             // Save to cache
             await cacheManager.saveNodes(nodes)
             
-            logger.log("✅ Deleted node locally: \(node.title)", category: "DataManager")
             errorMessage = "Deleted offline - will sync when connected"
         }
     }
@@ -526,7 +493,6 @@ public class DataManager: ObservableObject {
                 )
                 nodes[index] = updatedNode
                 updated = true
-                logger.log("✅ Replaced temp ID \(tempId) with server ID \(serverId)", category: "DataManager")
             }
         }
         
@@ -565,18 +531,15 @@ public class DataManager: ObservableObject {
     
     /// Load data from local cache
     private func loadFromCache() async {
-        logger.log("📦 DataManager.loadFromCache() called", category: "DataManager")
         
         if let cachedNodes = await cacheManager.loadNodes() {
             self.nodes = cachedNodes
-            logger.log("✅ Loaded \(cachedNodes.count) nodes from cache", category: "DataManager")
         } else {
             logger.log("⚠️ No nodes found in cache", category: "DataManager")
         }
         
         if let cachedTags = await cacheManager.loadTags() {
             self.tags = cachedTags
-            logger.log("✅ Loaded \(cachedTags.count) tags from cache", category: "DataManager")
         } else {
             logger.log("⚠️ No tags found in cache", category: "DataManager")
         }
@@ -588,13 +551,9 @@ public class DataManager: ObservableObject {
             logger.log("⚠️ No cache metadata found", category: "DataManager")
         }
         
-        logger.log("✅ DataManager.loadFromCache() completed. nodes.count=\(nodes.count)", category: "DataManager")
     }
     
     public func toggleNodeCompletion(_ node: Node) async -> Node? {
-        logger.log("📞 toggleNodeCompletion called with node: \(node.id) - '\(node.title)'", category: "DataManager")
-        logger.log("   - Node type: \(node.nodeType)", category: "DataManager")
-        logger.log("   - Current completion: \(node.taskData?.completedAt != nil)", category: "DataManager")
         
         guard node.nodeType == "task" else {
             logger.log("⚠️ Not a task node, returning nil", category: "DataManager")
@@ -605,17 +564,11 @@ public class DataManager: ObservableObject {
             // Online - toggle via API
             do {
                 let isCurrentlyCompleted = node.taskData?.status == "done"
-                logger.log("📞 Calling API.toggleTaskCompletion", category: "DataManager")
-                logger.log("   - Node ID: \(node.id)", category: "DataManager")
-                logger.log("   - Currently completed: \(isCurrentlyCompleted)", category: "DataManager")
                 
                 let updatedNode = try await api.toggleTaskCompletion(
                     nodeId: node.id,
                     currentlyCompleted: isCurrentlyCompleted
                 )
-                
-                logger.log("✅ API call successful", category: "DataManager")
-                logger.log("   - Updated completion: \(updatedNode.taskData?.status == "done")", category: "DataManager")
                 
                 // Clear any previous error on success
                 errorMessage = nil
@@ -623,7 +576,6 @@ public class DataManager: ObservableObject {
                 // Update local nodes array
                 if let index = nodes.firstIndex(where: { $0.id == node.id }) {
                     nodes[index] = updatedNode
-                    logger.log("✅ Updated local nodes array at index \(index)", category: "DataManager")
                     
                     // Update cache
                     await cacheManager.saveNodes(nodes)
@@ -688,11 +640,9 @@ public class DataManager: ObservableObject {
 
     /// Gets the current default folder ID from settings
     public func getDefaultFolder() async -> String? {
-        logger.log("📞 getDefaultFolder called", category: "DataManager")
 
         do {
             let defaultNodeId = try await api.getDefaultNode()
-            logger.log("✅ Got default folder: \(defaultNodeId ?? "none")", category: "DataManager")
             return defaultNodeId
         } catch {
             logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "DataManager")
@@ -702,11 +652,9 @@ public class DataManager: ObservableObject {
 
     /// Sets the default folder ID in settings
     public func setDefaultFolder(nodeId: String?) async -> Bool {
-        logger.log("📞 setDefaultFolder called with nodeId: \(nodeId ?? "nil")", category: "DataManager")
 
         do {
             try await api.setDefaultNode(nodeId: nodeId)
-            logger.log("✅ Set default folder to: \(nodeId ?? "none")", category: "DataManager")
             return true
         } catch {
             logger.log("❌ Failed to set default folder: \(error)", level: .error, category: "DataManager")
@@ -718,9 +666,6 @@ public class DataManager: ObservableObject {
 
     /// Instantiates a template with optional parent override
     public func instantiateTemplate(templateId: String, parentId: String? = nil) async -> Node? {
-        logger.log("📞 instantiateTemplate called", category: "DataManager")
-        logger.log("   Template ID: \(templateId)", category: "DataManager")
-        logger.log("   Parent ID: \(parentId ?? "nil")", category: "DataManager")
 
         do {
             let newNode = try await api.instantiateTemplate(
@@ -728,19 +673,8 @@ public class DataManager: ObservableObject {
                 parentId: parentId
             )
 
-            logger.log("✅ Template instantiated successfully", category: "DataManager")
-            logger.log("   New node ID: \(newNode.id)", category: "DataManager")
-            logger.log("   New node title: \(newNode.title)", category: "DataManager")
 
-            // Refresh only the parent node to include the new child
-            // This is more efficient than a full sync
-            if let parentId = parentId {
-                await refreshNode(parentId)
-            } else {
-                // For root nodes, we need to sync all to get the new root
-                await syncAllData()
-            }
-
+            // Do not perform a sync or refresh here; caller handles targeted refresh/retry
             return newNode
         } catch {
             logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "DataManager")
@@ -753,7 +687,6 @@ public class DataManager: ObservableObject {
 
     /// Refreshes a single node and its children from the API
     public func refreshNode(_ nodeId: String) async {
-        logger.log("📞 refreshNode called for: \(nodeId)", category: "DataManager")
 
         // Store current state for rollback if needed
         let backupNodes = nodes
@@ -842,13 +775,11 @@ public class DataManager: ObservableObject {
 
     /// Search for tags by query
     public func searchTags(query: String, limit: Int = 10) async throws -> [Tag] {
-        logger.log("📞 searchTags called with query: \(query)", category: "DataManager")
         return try await api.searchTags(query: query, limit: limit)
     }
 
     /// Create a new tag
     public func createTag(name: String, description: String? = nil, color: String? = nil) async throws -> Tag {
-        logger.log("📞 createTag called with name: \(name)", category: "DataManager")
         let tag = try await api.createTag(name: name, description: description, color: color)
         // Refresh tags list
         await loadTags()
@@ -857,7 +788,6 @@ public class DataManager: ObservableObject {
 
     /// Attach a tag to a node
     public func attachTagToNode(nodeId: String, tagId: String) async throws {
-        logger.log("📞 attachTagToNode called - node: \(nodeId), tag: \(tagId)", category: "DataManager")
         try await api.attachTagToNode(nodeId: nodeId, tagId: tagId)
         // Refresh the specific node to update its tags
         await refreshNode(nodeId)
@@ -865,7 +795,6 @@ public class DataManager: ObservableObject {
 
     /// Detach a tag from a node
     public func detachTagFromNode(nodeId: String, tagId: String) async throws {
-        logger.log("📞 detachTagFromNode called - node: \(nodeId), tag: \(tagId)", category: "DataManager")
         try await api.detachTagFromNode(nodeId: nodeId, tagId: tagId)
         // Refresh the specific node to update its tags
         await refreshNode(nodeId)
@@ -875,13 +804,11 @@ public class DataManager: ObservableObject {
 
     /// Update a node with the given changes
     public func updateNode(id: String, update: NodeUpdate) async throws -> Node {
-        logger.log("📞 updateNode called for id: \(id)", category: "DataManager")
         let updatedNode = try await api.updateNode(id: id, update: update)
 
         // Update the node in our local array
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             nodes[index] = updatedNode
-            logger.log("✅ Node updated locally: \(updatedNode.title)", category: "DataManager")
         }
 
         return updatedNode
@@ -889,30 +816,25 @@ public class DataManager: ObservableObject {
 
     /// Get a single node by ID
     public func getNode(id: String) async throws -> Node {
-        logger.log("📞 getNode called for id: \(id)", category: "DataManager")
 
         // First check if we have it locally
         if let localNode = nodes.first(where: { $0.id == id }) {
-            logger.log("✅ Found node locally: \(localNode.title)", category: "DataManager")
             return localNode
         }
 
         // Otherwise fetch from API
         let node = try await api.getNode(id: id)
-        logger.log("✅ Fetched node from API: \(node.title)", category: "DataManager")
         return node
     }
 
     /// Get all rules
     public func getRules(includePublic: Bool = true, includeSystem: Bool = true) async throws -> [Rule] {
-        logger.log("📞 getRules called", category: "DataManager")
         let response = try await api.getRules(includePublic: includePublic, includeSystem: includeSystem)
         return response.rules
     }
 
     /// Get tags for the current account
     public func getTags() async throws -> [Tag] {
-        logger.log("📞 getTags called", category: "DataManager")
         return try await api.getTags()
     }
 
@@ -920,21 +842,10 @@ public class DataManager: ObservableObject {
 
     /// Executes a smart folder rule and returns the result nodes
     public func executeSmartFolder(nodeId: String) async -> [Node] {
-        logger.log("📞 executeSmartFolder called for node: \(nodeId)", category: "DataManager")
 
         do {
             let resultNodes = try await api.executeSmartFolderRule(smartFolderId: nodeId)
 
-            logger.log("✅ Smart folder executed successfully", category: "DataManager")
-            logger.log("   Returned \(resultNodes.count) nodes", category: "DataManager")
-
-            // Log first few results for debugging
-            for (index, node) in resultNodes.prefix(3).enumerated() {
-                logger.log("   Result \(index + 1): \(node.title) (type: \(node.nodeType))", category: "DataManager")
-            }
-            if resultNodes.count > 3 {
-                logger.log("   ... and \(resultNodes.count - 3) more nodes", category: "DataManager")
-            }
 
             return resultNodes
         } catch {

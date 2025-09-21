@@ -52,10 +52,12 @@ The codebase uses a modular package structure with strict dependency rules. All 
 - Views use `@StateObject` or `@ObservedObject` for ViewModels
 - DataManager is passed as `@EnvironmentObject`
 
-**Data Flow Rules (CRITICAL)**
-- **Single Source of Truth**: DataManager.nodes is the ONLY source for node data
-- **No Direct API Calls in Views**: ALL API calls must go through DataManager or other Services
-- **TreeViewModel subscribes to DataManager**: TreeViewModel.allNodes should reflect DataManager.nodes, never maintain separate state
+**Data Flow Architecture (Post-Refactor)**
+- **Single Source of Truth**: `DataManager.nodes` is the authoritative data source
+- **No Direct API Calls**: Features module never calls APIClient directly
+- **Centralized Updates**: All data mutations go through DataManager
+- **Subscription Model**: TreeViewModel subscribes to DataManager.nodes changes
+- **Data Consistency**: Parent-child relationships maintained through invariants
 - **Intent-Based Actions**: Views dispatch intents to ViewModels, ViewModels orchestrate operations
 
 **Platform-Specific Views**
@@ -101,6 +103,39 @@ When significant platform differences exist:
 - TabbedTreeView must handle all keycodes to prevent beeps
 - Arrow keys navigate, right arrow focuses even without children
 
+## Recent Architecture Refactoring (Phases 1-6)
+
+### Phase 1: Single Source of Truth ✅
+- Removed direct API calls from Features module
+- TreeViewModel now subscribes to DataManager.nodes
+- All data operations go through DataManager
+
+### Phase 2: Fix Subscriptions ✅
+- TreeViewModel properly subscribes to DataManager.$nodes
+- Removed duplicate state management
+- Fixed Combine subscription chain
+
+### Phase 3: Route All Operations ✅
+- Template instantiation through DataManager
+- Smart folder execution through DataManager
+- Tag operations through DataManager
+
+### Phase 4: Centralize UI Operations ✅
+- Keyboard handling centralized in handleKeyPress()
+- Navigation logic consolidated in navigateToNode()
+- State management through intent methods
+
+### Phase 5: Ensure Data Consistency ✅
+- Parent-child invariants maintained
+- Subtree removal on parent refresh
+- Retry logic for eventual consistency
+- Debug validation with validateNodeConsistency()
+
+### Phase 6: Clean Up and Document ✅
+- Removed excessive logging
+- Updated documentation
+- No duplicate refresh implementations
+
 ## Common Pitfalls to Avoid
 
 1. **Never commit without user permission** - User will explicitly ask "commit"
@@ -114,12 +149,15 @@ When significant platform differences exist:
 
 ## Logging Requirements
 
-Every significant action MUST be logged using `Logger.shared`:
+Log only essential information using `Logger.shared`:
 ```swift
 private let logger = Logger.shared
-logger.log("📞 Function called", category: "ClassName")
-logger.log("✅ Success", category: "API")
+// Log errors and warnings
 logger.log("❌ Error: \(error)", category: "API", level: .error)
+logger.log("⚠️ Warning: cache miss", category: "Cache", level: .warning)
+// Log critical state changes
+logger.log("🔄 Sync completed", category: "DataManager")
+// DO NOT log routine operations, function entries, or trivial state updates
 ```
 
 Log files location:
