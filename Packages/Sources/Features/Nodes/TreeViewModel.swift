@@ -985,7 +985,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let nodeId = nodeId {
             expandedNodes.insert(nodeId) // Always expand when focusing
         }
-        NotificationCenter.default.post(name: .focusChanged, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
     }
 
     /// Expand a node

@@ -175,7 +175,8 @@ private struct TreeContent: View {
                 onUpdateSingleNode: viewModel.updateSingleNode,
                 onNodeDrop: viewModel.performReorder,
                 onExecuteSmartFolder: viewModel.executeSmartFolder,
-                onInstantiateTemplate: viewModel.instantiateTemplate
+                onInstantiateTemplate: viewModel.instantiateTemplate,
+                onCollapseNode: viewModel.collapseNode
             )
         } else {
             // Normal mode - show root nodes
@@ -201,7 +202,8 @@ private struct TreeContent: View {
                     onUpdateSingleNode: viewModel.updateSingleNode,
                     onNodeDrop: viewModel.performReorder,
                     onExecuteSmartFolder: viewModel.executeSmartFolder,
-                    onInstantiateTemplate: viewModel.instantiateTemplate
+                    onInstantiateTemplate: viewModel.instantiateTemplate,
+                    onCollapseNode: viewModel.collapseNode
                 )
             }
         }

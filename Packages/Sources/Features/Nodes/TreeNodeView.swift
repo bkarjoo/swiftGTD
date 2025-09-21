@@ -35,6 +35,7 @@ public struct TreeNodeView: View {
     let onNodeDrop: ((Node, Node, DropPosition, String) async -> Void)?  // Pass nodes, position, and message
     let onExecuteSmartFolder: ((Node) async -> Void)?  // Execute smart folder
     let onInstantiateTemplate: ((Node) async -> Void)?  // Instantiate template
+    let onCollapseNode: ((String) -> Void)?  // Collapse node with proper selection handling
 
     @State private var showingDetailsForNode: Node?
     @State private var showingTagPickerForNode: Node?
@@ -222,7 +223,8 @@ public struct TreeNodeView: View {
                         onUpdateSingleNode: onUpdateSingleNode,
                         onNodeDrop: onNodeDrop,
                         onExecuteSmartFolder: onExecuteSmartFolder,
-                        onInstantiateTemplate: onInstantiateTemplate
+                        onInstantiateTemplate: onInstantiateTemplate,
+                        onCollapseNode: onCollapseNode
                     )
                 }
             }
@@ -262,7 +264,11 @@ public struct TreeNodeView: View {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if isExpanded {
                         logger.log("📦 Collapsing node: \(node.title)", category: "TreeNodeView")
-                        expandedNodes.remove(node.id)
+                        if let onCollapseNode = onCollapseNode {
+                            onCollapseNode(node.id)
+                        } else {
+                            expandedNodes.remove(node.id)
+                        }
                     } else {
                         logger.log("📤 Expanding node: \(node.title)", category: "TreeNodeView")
                         expandedNodes.insert(node.id)
@@ -299,7 +305,11 @@ public struct TreeNodeView: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         if isExpanded {
                             logger.log("📦 Collapsing node via icon: \(node.title)", category: "TreeNodeView")
-                            expandedNodes.remove(node.id)
+                            if let onCollapseNode = onCollapseNode {
+                                onCollapseNode(node.id)
+                            } else {
+                                expandedNodes.remove(node.id)
+                            }
                         } else {
                             logger.log("📤 Expanding node via icon: \(node.title)", category: "TreeNodeView")
                             expandedNodes.insert(node.id)

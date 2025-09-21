@@ -683,7 +683,8 @@ private struct TreeContent: View {
                 onUpdateSingleNode: viewModel.updateSingleNode,
                 onNodeDrop: viewModel.performReorder,
                 onExecuteSmartFolder: viewModel.executeSmartFolder,
-                onInstantiateTemplate: viewModel.instantiateTemplate
+                onInstantiateTemplate: viewModel.instantiateTemplate,
+                onCollapseNode: viewModel.collapseNode
             )
         } else {
             ForEach(viewModel.getRootNodes()) { node in
@@ -708,7 +709,8 @@ private struct TreeContent: View {
                     onUpdateSingleNode: viewModel.updateSingleNode,
                     onNodeDrop: viewModel.performReorder,
                     onExecuteSmartFolder: viewModel.executeSmartFolder,
-                    onInstantiateTemplate: viewModel.instantiateTemplate
+                    onInstantiateTemplate: viewModel.instantiateTemplate,
+                    onCollapseNode: viewModel.collapseNode
                 )
             }
         }
