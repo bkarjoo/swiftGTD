@@ -197,32 +197,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
     }
 
-    /// Merge children into allNodes, removing orphans
-    private func mergeChildrenIntoNodes(parentId: String, children: [Node]) {
-        logger.log("🔄 Merging \(children.count) children for parent: \(parentId)", category: "TreeViewModel")
-
-        // Create a mutable copy of allNodes
-        var updatedNodes = allNodes
-
-        // Remove old children that are no longer present
-        let childIds = Set(children.map { $0.id })
-        updatedNodes.removeAll { node in
-            node.parentId == parentId && !childIds.contains(node.id)
-        }
-
-        // Update or add new children
-        for child in children {
-            if let index = updatedNodes.firstIndex(where: { $0.id == child.id }) {
-                updatedNodes[index] = child
-            } else {
-                updatedNodes.append(child)
-            }
-        }
-
-        // Rebuild nodeChildren with the updated nodes
-        updateNodesFromDataManager(updatedNodes)
-    }
-
     /// Initial load of nodes - only runs once per view lifecycle
     func initialLoad() async {
         guard !didLoad else {
@@ -263,6 +237,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         // Use DataManager to refresh the single node
         await dataManager.refreshNode(nodeId)
+        // DataManager now handles error recovery internally by restoring previous state
     }
 
     private func performLoad() async {
@@ -372,6 +347,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Refresh parent node to ensure its children list is consistent
         if let parentId = node.parentId {
             await dataManager.refreshNode(parentId)
+            // DataManager handles error recovery by preserving consistency
+            logger.log("✅ Parent node refreshed after deletion", category: "TreeViewModel")
         }
 
         // Handle UI-specific state cleanup and selection
@@ -530,9 +507,12 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Refresh the parent to ensure consistent ordering
         if let parentId = draggedNode.parentId {
             await dataManager.refreshNode(parentId)
+            // DataManager handles error recovery by preserving consistency
+            logger.log("✅ Parent node refreshed after reordering", category: "TreeViewModel")
         } else {
             // For root nodes, refresh all root nodes
             await dataManager.syncAllData()
+            logger.log("✅ Synced all data after root node reordering", category: "TreeViewModel")
         }
 
         await MainActor.run {
@@ -573,6 +553,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
             // Ensure parent's children are consistent
             if let parentId = createdNode.parentId {
                 await dataManager.refreshNode(parentId)
+                // DataManager handles error recovery by preserving consistency
+                logger.log("✅ Parent node refreshed after node creation", category: "TreeViewModel")
             }
 
             await MainActor.run {
@@ -1032,6 +1014,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 // Keep it expanded to show "no results" state
                 self.expandedNodes.insert(node.id)
             }
+
+            #if DEBUG
+            // Validate data consistency after smart folder execution
+            self.validateNodeConsistency()
+            #endif
         }
     }
 
@@ -1075,6 +1062,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 // Refresh the parent node to get updated children
                 if let targetId = targetNodeId {
                     await dataManager.refreshNode(targetId)
+                    // DataManager handles error recovery by preserving consistency
+                    logger.log("📊 Refreshed target node during retry \(retryCount)", category: "TreeViewModel")
                 }
             }
 

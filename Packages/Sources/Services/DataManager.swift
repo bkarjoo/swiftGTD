@@ -749,6 +749,11 @@ public class DataManager: ObservableObject {
     public func refreshNode(_ nodeId: String) async {
         logger.log("📞 refreshNode called for: \(nodeId)", category: "DataManager")
 
+        // Store current state for rollback if needed
+        let backupNodes = nodes
+        let currentNode = nodes.first(where: { $0.id == nodeId })
+        let currentChildren = nodes.filter { $0.parentId == nodeId }
+
         do {
             // Fetch the updated node
             let updatedNode = try await api.getNode(id: nodeId)
@@ -784,6 +789,18 @@ public class DataManager: ObservableObject {
         } catch {
             logger.error("❌ Failed to refresh node: \(error)", category: "DataManager")
             errorMessage = error.localizedDescription
+
+            // Error recovery: Restore previous state to maintain consistency
+            if currentNode != nil || !currentChildren.isEmpty {
+                logger.log("🔄 Attempting to restore previous state after refresh failure", category: "DataManager")
+                nodes = backupNodes
+                logger.log("✅ Restored previous state with \(currentChildren.count) children", category: "DataManager")
+            } else {
+                logger.log("⚠️ No previous state to restore, maintaining current data", category: "DataManager")
+            }
+
+            // If offline, the data remains consistent with last known good state
+            // If network error, we've preserved consistency by rolling back
         }
     }
 
