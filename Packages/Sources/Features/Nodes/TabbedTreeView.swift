@@ -81,7 +81,6 @@ public struct TabbedTreeView: View {
             }
             setupKeyEventMonitor()
             setupStateChangeObservers()
-            setupActiveTabSubscription()
         }
         .onDisappear {
             if let monitor = keyEventMonitor {
@@ -98,6 +97,10 @@ public struct TabbedTreeView: View {
             activeTabSubscription = nil
             // Save on disappear
             self.saveStateNow()
+        }
+        .onChange(of: selectedTabId) { _ in
+            setupActiveTabSubscription()
+            saveStateNow() // Save on tab change
         }
         .onChange(of: scenePhase) { newPhase in
             switch newPhase {
@@ -124,10 +127,7 @@ public struct TabbedTreeView: View {
                 editingTabId: $editingTabId,
                 onNewTab: { addNewTab() },
                 onCloseTab: { closeTab($0) },
-                onTabChange: {
-                    setupActiveTabSubscription()
-                    saveStateNow()
-                }
+                onTabChange: { saveStateNow() }
             )
             .frame(height: 36)
             .background(Color(NSColor.controlBackgroundColor))
@@ -143,9 +143,6 @@ public struct TabbedTreeView: View {
         if let currentTab = currentTab {
             TreeView_macOS(viewModel: currentTab.viewModel)
                 .environmentObject(dataManager)
-                .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
-                    updateState()
-                }
                 .id(currentTab.id)
         }
     }
@@ -216,9 +213,7 @@ public struct TabbedTreeView: View {
         let newTab = TabModel(title: tabName)
         tabs.append(newTab)
         selectedTabId = newTab.id
-        updateState()
-        saveStateNow() // Save on tab creation
-        setupActiveTabSubscription()
+        // onChange(of: selectedTabId) will handle subscription setup and saving
     }
 
     private func closeTab(_ tabId: UUID) {
@@ -237,9 +232,7 @@ public struct TabbedTreeView: View {
                     selectedTabId = firstTab.id
                 }
             }
-            updateState()
-            saveStateNow() // Save on tab close
-            setupActiveTabSubscription()
+            // onChange(of: selectedTabId) will handle subscription setup and saving
         }
     }
 
@@ -303,64 +296,55 @@ public struct TabbedTreeView: View {
                 case 18: // Cmd+1
                     if tabs.count >= 1 {
                         selectedTabId = tabs[0].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 19: // Cmd+2
                     if tabs.count >= 2 {
                         selectedTabId = tabs[1].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 20: // Cmd+3
                     if tabs.count >= 3 {
                         selectedTabId = tabs[2].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 21: // Cmd+4
                     if tabs.count >= 4 {
                         selectedTabId = tabs[3].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 23: // Cmd+5
                     if tabs.count >= 5 {
                         selectedTabId = tabs[4].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 22: // Cmd+6
                     if tabs.count >= 6 {
                         selectedTabId = tabs[5].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 26: // Cmd+7
                     if tabs.count >= 7 {
                         selectedTabId = tabs[6].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 28: // Cmd+8
                     if tabs.count >= 8 {
                         selectedTabId = tabs[7].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
                 case 25: // Cmd+9
                     if tabs.count >= 9 {
                         selectedTabId = tabs[8].id
-                        setupActiveTabSubscription()
-                        saveStateNow() // Save on tab change
+                        // onChange(of: selectedTabId) will handle subscription setup and saving
                         return nil
                     }
 
@@ -473,9 +457,10 @@ public struct TabbedTreeView: View {
                 }
             }
 
-            // Select first tab
+            // Select first tab and setup subscription
             if let firstTab = tabs.first {
                 selectedTabId = firstTab.id
+                setupActiveTabSubscription() // Initial setup for first tab
             }
         } else {
             logger.log("ℹ️ No saved state, creating default tab", category: "TabbedTreeView")
@@ -483,6 +468,7 @@ public struct TabbedTreeView: View {
             let defaultTab = TabModel(title: "Main")
             tabs = [defaultTab]
             selectedTabId = defaultTab.id
+            setupActiveTabSubscription() // Initial setup for default tab
         }
     }
 
@@ -515,16 +501,7 @@ public struct TabbedTreeView: View {
         }
         notificationObservers.append(terminationObserver)
 
-        // Listen for focus changes broadcast by views
-        let focusObserver = NotificationCenter.default.addObserver(
-            forName: .focusChanged,
-            object: nil,
-            queue: .main
-        ) { _ in
-            self.logger.log("🧭 FocusChanged notification received — updating state", category: "TabbedTreeView")
-            self.updateState()
-        }
-        notificationObservers.append(focusObserver)
+        // Removed focusChanged observer - now handled by active tab subscription
     }
 
     private func setupActiveTabSubscription() {
@@ -579,7 +556,7 @@ struct TabBarView: View {
                             onSelect: {
                                 if selectedTabId != tab.id {
                                     selectedTabId = tab.id
-                                    onTabChange() // Save on tab change
+                                    // onChange(of: selectedTabId) will handle everything
                                 }
                             },
                             onClose: { onCloseTab(tab.id) },
