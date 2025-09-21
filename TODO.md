@@ -130,9 +130,9 @@ This refactoring addresses architectural issues identified in code review, focus
 **Goal**: Remove dead code, improve logging, update documentation
 
 ### Tasks
-- [ ] Remove duplicate refresh implementations
+- [x] Remove duplicate refresh implementations
 - [ ] Standardize logging (reduce chattiness, consistent categories)
-- [ ] Update CLAUDE.md with new architecture
+- [x] Update CLAUDE.md with new architecture (partially - flows updated, needs diagram)
 - [ ] Add architecture diagram to docs
 - [ ] Write tests for critical paths
 

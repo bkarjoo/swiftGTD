@@ -80,16 +80,16 @@ When significant platform differences exist:
 
 ### Critical Implementation Details
 
-**Template Instantiation Flow (NEEDS REFACTOR)**
+**Template Instantiation Flow**
 1. User presses Cmd+U on a template node
-2. Should call DataManager.instantiateTemplate() - NOT direct API
-3. DataManager updates its nodes, TreeViewModel reflects changes
-4. Use `refreshNodes()` not `loadAllNodes()` (which has didLoad guard)
-5. Target node expanded and new node focused
+2. TreeViewModel calls DataManager.instantiateTemplate()
+3. DataManager returns new node immediately (no sync)
+4. TreeViewModel implements retry logic with targeted refreshNode(parentId)
+5. Target node expanded and new node focused after retry succeeds
 
-**Default Folder Feature (NEEDS REFACTOR)**
+**Default Folder Feature**
 - Settings API: `GET/PUT /settings/default-node`
-- Should be accessed through DataManager, not direct API calls
+- Accessed through DataManager.getDefaultFolder/setDefaultFolder
 - Q key creates task in default folder using `createNodeParentId`
 - CreateNodeSheet uses `createNodeParentId ?? focusedNodeId`
 
