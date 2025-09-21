@@ -880,7 +880,17 @@ public class TreeViewModel: ObservableObject, Identifiable {
     private func navigateLeft(from nodeId: String) {
         guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
 
-        if expandedNodes.contains(nodeId) && !getChildren(of: nodeId).isEmpty {
+        // If we're in focus mode and this is the focused node, exit focus first
+        if focusedNodeId == nodeId {
+            // Exit focus mode - go back to parent or root view
+            if let parentId = node.parentId {
+                setFocusedNode(parentId)
+                setSelectedNode(nodeId) // Keep selection on current node
+            } else {
+                setFocusedNode(nil) // Exit to root view
+                setSelectedNode(nodeId) // Keep selection on current node
+            }
+        } else if expandedNodes.contains(nodeId) && !getChildren(of: nodeId).isEmpty {
             // Collapse if expanded and has children
             collapseNode(nodeId)
         } else if let parentId = node.parentId {
@@ -891,15 +901,40 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     private func navigateRight(from nodeId: String) {
         guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
-        let children = getChildren(of: nodeId)
 
-        if !children.isEmpty {
-            if !expandedNodes.contains(nodeId) {
-                // Expand if collapsed and has children
-                expandNode(nodeId)
-            } else if let firstChild = children.first {
-                // Navigate to first child if already expanded
-                setSelectedNode(firstChild.id)
+        // Special handling for different node types
+        switch node.nodeType {
+        case "note":
+            // Right arrow on note opens the note editor
+            showingNoteEditorForNode = node
+            return
+
+        case "smart_folder":
+            // Right arrow on smart folder executes it
+            Task {
+                await executeSmartFolder(node)
+            }
+            return
+
+        case "template":
+            // Right arrow on template instantiates it
+            Task {
+                await instantiateTemplate(node)
+            }
+            return
+
+        default:
+            // Normal folder/task behavior
+            let children = getChildren(of: nodeId)
+
+            if !children.isEmpty {
+                if !expandedNodes.contains(nodeId) {
+                    // First click: Expand if collapsed and has children
+                    expandNode(nodeId)
+                } else {
+                    // Second click: Focus on the node (enter focus mode)
+                    setFocusedNode(nodeId)
+                }
             }
         }
     }
