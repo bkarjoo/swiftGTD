@@ -918,13 +918,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
             return
 
-        case "template":
-            // Right arrow on template instantiates it
-            Task {
-                await instantiateTemplate(node)
-            }
-            return
-
         default:
             // Normal folder/task behavior
             let children = getChildren(of: nodeId)
