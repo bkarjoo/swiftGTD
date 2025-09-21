@@ -996,6 +996,35 @@ public class TreeViewModel: ObservableObject, Identifiable {
     /// Collapse a node
     func collapseNode(_ nodeId: String) {
         expandedNodes.remove(nodeId)
+
+        // If the currently selected node is a descendant of the collapsed node,
+        // move selection to the collapsed parent node
+        if let selectedId = selectedNodeId {
+            if isDescendant(selectedId, of: nodeId) {
+                setSelectedNode(nodeId)
+                // Also clear focus if focused node was a descendant
+                if let focusedId = focusedNodeId, isDescendant(focusedId, of: nodeId) {
+                    setFocusedNode(nil)
+                }
+            }
+        }
+    }
+
+    /// Check if a node is a descendant of another node
+    private func isDescendant(_ childId: String, of ancestorId: String) -> Bool {
+        var currentId: String? = childId
+        while let id = currentId {
+            // Get parent of current node
+            if let parent = allNodes.first(where: { $0.id == id })?.parentId {
+                if parent == ancestorId {
+                    return true
+                }
+                currentId = parent
+            } else {
+                break
+            }
+        }
+        return false
     }
 
     /// Toggle expansion state
