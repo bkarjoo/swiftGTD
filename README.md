@@ -2,6 +2,8 @@
 
 A native iOS and macOS GTD (Getting Things Done) app built with SwiftUI, designed to work with your existing GTD backend.
 
+📖 **[User Manual](USER_MANUAL.md)** - Complete guide to using SwiftGTD effectively
+
 ## Features
 
 - ✅ Task management with projects, areas, and folders
@@ -41,6 +43,28 @@ A native iOS and macOS GTD (Getting Things Done) app built with SwiftUI, designe
 ### Backend Connection
 
 The app connects to your GTD backend via the URL configured in `Config.xcconfig`. See CONFIG_SETUP.md for configuration details.
+
+## Quick Start Guide
+
+Once the app is running:
+
+1. **Login**: Enter your credentials (check "Remember Me" to stay logged in)
+2. **Create your first task**: Press `T` and type a task name
+3. **Organize with folders**: Press `F` to create folders
+4. **Use keyboard shortcuts**: Press `Cmd+?` to see all shortcuts
+5. **Master the workflow**: Read the [User Manual](USER_MANUAL.md) for complete guidance
+
+### Essential Keyboard Shortcuts
+
+- `T` - New task
+- `F` - New folder
+- `N` - New note
+- `Space` - Toggle task completion
+- `Enter` - Rename node
+- `←→` - Navigate and expand/collapse
+- `Cmd+Shift+F` - Focus on node
+
+See the [User Manual](USER_MANUAL.md#keyboard-shortcuts) for the complete list.
 
 ## Architecture
 
