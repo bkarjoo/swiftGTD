@@ -56,9 +56,11 @@ The codebase uses a modular package structure with strict dependency rules. All 
 - **Single Source of Truth**: `DataManager.nodes` is the authoritative data source
 - **No Direct API Calls**: Features module never calls APIClient directly
 - **Centralized Updates**: All data mutations go through DataManager
-- **Subscription Model**: TreeViewModel subscribes to DataManager.nodes changes
+- **Subscription Model**: TreeViewModel subscribes to DataManager.nodes changes via Combine
 - **Data Consistency**: Parent-child relationships maintained through invariants
 - **Intent-Based Actions**: Views dispatch intents to ViewModels, ViewModels orchestrate operations
+- **Targeted Refresh**: `refreshNode()` fetches node + children, removes orphaned descendants
+- **Eventual Consistency**: Template instantiation uses retry logic for server sync delays
 
 **Platform-Specific Views**
 When significant platform differences exist:
@@ -136,10 +138,26 @@ When significant platform differences exist:
 - Updated documentation
 - No duplicate refresh implementations
 
+## Key Methods and Their Purpose
+
+**TreeViewModel Methods**
+- `initialLoad()` - First-time load with didLoad guard, runs once per view lifecycle
+- `refreshNodes()` - Force full refresh from server, bypasses didLoad guard
+- `refreshNode(nodeId)` - Targeted refresh of single node via DataManager
+- `handleKeyPress()` - Centralized keyboard handling for all shortcuts
+- `navigateToNode()` - Unified navigation logic for arrow keys
+- `validateNodeConsistency()` - Debug-only validation of parent-child invariants
+
+**DataManager Methods**
+- `syncAllData()` - Full sync from server or cache fallback
+- `refreshNode(nodeId)` - Fetch node + children, remove orphaned descendants
+- `instantiateTemplate()` - Create from template, no sync (caller handles retry)
+- `syncPendingOperations()` - Process offline queue when network restored
+
 ## Common Pitfalls to Avoid
 
 1. **Never commit without user permission** - User will explicitly ask "commit"
-2. **loadAllNodes() has guard** - Use `refreshNodes()` for forced refresh, rename to `initialLoad()` for clarity
+2. **initialLoad() has guard** - Use `refreshNodes()` for forced refresh
 3. **TabbedTreeView intercepts all keys** - Must add handler or return nil to prevent beep
 4. **Public access required** - All cross-module types need `public` modifier
 5. **Form compilation issues** - Use `List` with `.listStyle` instead of `Form`

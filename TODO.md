@@ -131,10 +131,10 @@ This refactoring addresses architectural issues identified in code review, focus
 
 ### Tasks
 - [x] Remove duplicate refresh implementations
-- [ ] Standardize logging (reduce chattiness, consistent categories)
-- [x] Update CLAUDE.md with new architecture (partially - flows updated, needs diagram)
-- [ ] Add architecture diagram to docs
-- [ ] Write tests for critical paths
+- [x] Standardize logging (reduce chattiness, consistent categories)
+- [x] Update CLAUDE.md with new architecture
+- [x] Add architecture diagram to docs
+- [ ] Write tests for critical paths (subtree removal, template retry)
 
 ### Final Testing Checkpoint
 - [ ] Full regression test of all features
