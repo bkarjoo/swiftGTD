@@ -567,6 +567,26 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 Task { performAction(.createQuickTask) }
                 return true
 
+            case 51: // Delete key with Cmd - Delete node
+                performAction(.deleteNode)
+                return true
+
+            case 46: // M - Show details/metadata
+                performAction(.showDetails)
+                return true
+
+            case 44: // Slash - Help (Cmd+/)
+                performAction(.showHelp)
+                return true
+
+            case 36: // Return with Cmd - Open note editor
+                if let node = allNodes.first(where: { $0.id == selectedNodeId }),
+                   node.nodeType == "note" {
+                    showingNoteEditorForNode = node
+                    return true
+                }
+                return false
+
             default:
                 break
             }
@@ -633,6 +653,24 @@ public class TreeViewModel: ObservableObject, Identifiable {
         case 124: // Arrow Right
             navigateToNode(direction: .right)
             return true
+
+        case 53: // Escape key
+            // Handle escape in priority order
+            if showingDeleteAlert {
+                // Close delete alert
+                showingDeleteAlert = false
+                nodeToDelete = nil
+                return true
+            } else if isEditing {
+                // Stop editing
+                isEditing = false
+                return true
+            } else if focusedNodeId != nil {
+                // Unfocus node
+                setFocusedNode(nil)
+                return true
+            }
+            return false
 
         default:
             break

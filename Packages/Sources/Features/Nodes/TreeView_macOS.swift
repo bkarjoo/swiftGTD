@@ -24,8 +24,6 @@ public struct TreeView_macOS: View {
     @EnvironmentObject var dataManager: DataManager
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
-    @FocusState private var isTreeFocused: Bool
-    @State private var keyEventMonitor: Any?
     @Environment(\.isInTabbedView) private var isInTabbedView
 
     public init(viewModel: TreeViewModel? = nil) {
@@ -33,20 +31,6 @@ public struct TreeView_macOS: View {
     }
     
     public var body: some View {
-        if isInTabbedView {
-            // In tabbed view, TabbedTreeView handles the create dialog sheet
-            mainContent
-        } else {
-            // In non-tabbed view, we handle our own create dialog sheet
-            mainContent
-                .sheet(isPresented: $viewModel.showingCreateDialog) {
-                    CreateNodeSheet(viewModel: viewModel)
-                        .environmentObject(dataManager)
-                }
-        }
-    }
-
-    private var mainContent: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 if viewModel.focusedNodeId != nil {
@@ -92,70 +76,16 @@ public struct TreeView_macOS: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
-                .background(alignment: .topLeading) {
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .focusable()
-                        .focused($isTreeFocused)
-                        .accessibilityHidden(true)
-                }
-                .onTapGesture {
-                    if !isTreeFocused {
-                        logger.log("🎯 Setting focus via tap gesture", category: "TreeView")
-                        isTreeFocused = true
-                    }
-                }
-                .onChange(of: viewModel.isEditing) { isEditing in
-                    if !isEditing {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            logger.log("🎯 Restoring focus to tree after editing", category: "TreeView")
-                            self.isTreeFocused = true
-                        }
-                    }
-                }
-                .onMoveCommand { direction in
-                    guard !viewModel.isEditing else { return }
-
-                    switch direction {
-                    case .up:
-                        viewModel.navigateToNode(direction: .up)
-                    case .down:
-                        viewModel.navigateToNode(direction: .down)
-                    case .left:
-                        viewModel.navigateToNode(direction: .left)
-                    case .right:
-                        viewModel.navigateToNode(direction: .right)
-                    default:
-                        break
-                    }
-                }
-                .onAppear {
-                    if !isInTabbedView {
-                        setupKeyEventMonitor()
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        logger.log("🎯 Setting initial focus to tree view", category: "TreeView")
-                        self.isTreeFocused = true
-                        if let window = NSApp.keyWindow {
-                            window.makeKey()
-                            window.makeFirstResponder(window.contentView)
-                        }
-                    }
-                }
-                .onDisappear {
-                    if !isInTabbedView {
-                        if let monitor = keyEventMonitor {
-                            NSEvent.removeMonitor(monitor)
-                            keyEventMonitor = nil
-                        }
-                    }
-                }
             }
             .navigationTitle(isInTabbedView ? "" : (viewModel.currentFocusedNode?.title ?? "All Nodes"))
             .toolbar {
                 if !isInTabbedView {
                     TreeToolbar(viewModel: viewModel)
                 }
+            }
+            .sheet(isPresented: isInTabbedView ? .constant(false) : $viewModel.showingCreateDialog) {
+                CreateNodeSheet(viewModel: viewModel)
+                    .environmentObject(dataManager)
             }
             .sheet(item: $viewModel.showingNoteEditorForNode) { node in
                 NoteEditorView(node: node) {
@@ -172,18 +102,6 @@ public struct TreeView_macOS: View {
             }
             .sheet(isPresented: $viewModel.showingHelpWindow) {
                 KeyboardShortcutsHelpView()
-            }
-            .onChange(of: viewModel.showingNoteEditorForNode != nil) { isShowing in
-                if !isInTabbedView {
-                    if isShowing {
-                        if let monitor = keyEventMonitor {
-                            NSEvent.removeMonitor(monitor)
-                            keyEventMonitor = nil
-                        }
-                    } else {
-                        setupKeyEventMonitor()
-                    }
-                }
             }
             .alert("Delete Node", isPresented: $viewModel.showingDeleteAlert) {
                 Button("Cancel", role: .cancel) {
@@ -225,48 +143,6 @@ public struct TreeView_macOS: View {
         }
     }
 
-    private func setupKeyEventMonitor() {
-        if let monitor = keyEventMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-
-        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if !self.isTreeFocused {
-                return event
-            }
-
-            if self.viewModel.showingDeleteAlert && event.keyCode == 53 { // Escape key
-                logger.log("⌨️ Escape pressed - closing delete alert", category: "TreeView")
-                self.viewModel.showingDeleteAlert = false
-                self.viewModel.nodeToDelete = nil
-                return nil // Consume the event
-            }
-
-            if viewModel.showingDeleteAlert ||
-               viewModel.showingCreateDialog ||
-               viewModel.showingDetailsForNode != nil ||
-               viewModel.showingTagPickerForNode != nil ||
-               viewModel.showingHelpWindow {
-                return event
-            }
-
-            if let firstResponder = NSApp.keyWindow?.firstResponder {
-                if firstResponder is NSTextView || firstResponder is NSTextField {
-                    return event
-                }
-            }
-
-            return self.handleKeyEvent(event) ? nil : event
-        }
-        logger.log("✅ Key event monitor setup complete", category: "TreeView")
-    }
-
-    private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        // Delegate to ViewModel for centralized handling
-        return viewModel.handleKeyPress(keyCode: event.keyCode, modifiers: event.modifierFlags)
-    }
-
-    // OLD handleKeyEvent code removed - now handled by ViewModel.handleKeyPress()
 
     /*  REMOVED CODE - kept for reference only
             case 2: // D key - Details

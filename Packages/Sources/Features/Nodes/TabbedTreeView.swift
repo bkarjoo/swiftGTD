@@ -263,13 +263,12 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            guard let currentTab = self.currentTab else { return event }
-            let viewModel = currentTab.viewModel
-
-            // Don't process if modals are showing (tab-specific ones need to be checked here)
-            if self.showingNewTabDialog || self.editingTabId != nil {
+            logger.log("🎯 TabbedTreeView keyEvent: keyCode=\(event.keyCode), modifiers=\(event.modifierFlags.rawValue)", category: "TabbedTreeView")
+            guard let currentTab = self.currentTab else {
+                logger.log("❌ No current tab", category: "TabbedTreeView")
                 return event
             }
+            let viewModel = currentTab.viewModel
 
             // Don't process if text field has focus
             if let firstResponder = NSApp.keyWindow?.firstResponder {
@@ -278,84 +277,99 @@ public struct TabbedTreeView: View {
                 }
             }
 
-            // Special handling for tab-specific shortcuts
-            if event.modifierFlags.contains(.command) {
-                switch event.keyCode {
-                case 17: // T - new tab (Cmd+Shift+T)
-                    if event.modifierFlags.contains(.shift) {
+            // Don't process if ANY modal is showing
+            if self.showingNewTabDialog ||
+               self.editingTabId != nil ||
+               viewModel.showingDeleteAlert ||
+               viewModel.showingCreateDialog ||
+               viewModel.showingDetailsForNode != nil ||
+               viewModel.showingTagPickerForNode != nil ||
+               viewModel.showingNoteEditorForNode != nil ||
+               viewModel.showingHelpWindow ||
+               viewModel.isEditing {
+                return event
+            }
+
+            let keyCode = event.keyCode
+            let modifiers = event.modifierFlags
+
+            // MARK: - Tab Management (Cmd shortcuts)
+            if modifiers.contains(.command) {
+                switch keyCode {
+                case 17: // Cmd+Shift+T - New tab
+                    if modifiers.contains(.shift) {
                         self.addNewTab()
                         return nil
                     }
-                case 13: // W - close tab
+                    // Fall through for Cmd+T (tags)
+
+                case 13: // Cmd+W - Close tab
                     if let tabId = self.selectedTabId {
                         self.closeTab(tabId)
                         return nil
                     }
-                case 18: // 1 - Switch to tab 1
-                    logger.log("⌨️ Cmd+1 pressed - switch to tab 1", category: "TabbedTreeView")
+
+                // Tab switching
+                case 18: // Cmd+1
                     if tabs.count >= 1 {
                         selectedTabId = tabs[0].id
+                        return nil
                     }
-                    return nil
-                case 19: // 2 - Switch to tab 2
-                    logger.log("⌨️ Cmd+2 pressed - switch to tab 2", category: "TabbedTreeView")
+                case 19: // Cmd+2
                     if tabs.count >= 2 {
                         selectedTabId = tabs[1].id
+                        return nil
                     }
-                    return nil
-                case 20: // 3 - Switch to tab 3
-                    logger.log("⌨️ Cmd+3 pressed - switch to tab 3", category: "TabbedTreeView")
+                case 20: // Cmd+3
                     if tabs.count >= 3 {
                         selectedTabId = tabs[2].id
+                        return nil
                     }
-                    return nil
-                case 21: // 4 - Switch to tab 4
-                    logger.log("⌨️ Cmd+4 pressed - switch to tab 4", category: "TabbedTreeView")
+                case 21: // Cmd+4
                     if tabs.count >= 4 {
                         selectedTabId = tabs[3].id
+                        return nil
                     }
-                    return nil
-                case 23: // 5 - Switch to tab 5
-                    logger.log("⌨️ Cmd+5 pressed - switch to tab 5", category: "TabbedTreeView")
+                case 23: // Cmd+5
                     if tabs.count >= 5 {
                         selectedTabId = tabs[4].id
+                        return nil
                     }
-                    return nil
-                case 22: // 6 - Switch to tab 6
-                    logger.log("⌨️ Cmd+6 pressed - switch to tab 6", category: "TabbedTreeView")
+                case 22: // Cmd+6
                     if tabs.count >= 6 {
                         selectedTabId = tabs[5].id
+                        return nil
                     }
-                    return nil
-                case 26: // 7 - Switch to tab 7
-                    logger.log("⌨️ Cmd+7 pressed - switch to tab 7", category: "TabbedTreeView")
+                case 26: // Cmd+7
                     if tabs.count >= 7 {
                         selectedTabId = tabs[6].id
+                        return nil
                     }
-                    return nil
-                case 28: // 8 - Switch to tab 8
-                    logger.log("⌨️ Cmd+8 pressed - switch to tab 8", category: "TabbedTreeView")
+                case 28: // Cmd+8
                     if tabs.count >= 8 {
                         selectedTabId = tabs[7].id
+                        return nil
                     }
-                    return nil
-                case 25: // 9 - Switch to tab 9
-                    logger.log("⌨️ Cmd+9 pressed - switch to tab 9", category: "TabbedTreeView")
+                case 25: // Cmd+9
                     if tabs.count >= 9 {
                         selectedTabId = tabs[8].id
+                        return nil
                     }
-                    return nil
+
                 default:
-                    // Let viewModel handle all other command shortcuts
                     break
                 }
             }
 
-            // Delegate all other keyboard handling to the ViewModel
-            if viewModel.handleKeyPress(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            // MARK: - All Node Operations - Delegate to TreeViewModel
+            // This includes arrow keys, creation shortcuts, etc.
+            logger.log("🔄 Delegating to TreeViewModel.handleKeyPress", category: "TabbedTreeView")
+            if viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers) {
+                logger.log("✅ TreeViewModel handled the key", category: "TabbedTreeView")
                 return nil
             }
 
+            logger.log("❌ TreeViewModel did NOT handle the key", category: "TabbedTreeView")
             return event
         }
     }

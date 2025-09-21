@@ -14,9 +14,6 @@ class DataManagerSubtreeRemovalTests: XCTestCase {
 
         mockAPI = TestMockAPIClient()
         mockNetworkMonitor = await TestableNetworkMonitor()
-        await MainActor.run {
-            mockNetworkMonitor.isConnected = true
-        }
 
         dataManager = await DataManager(
             apiClient: mockAPI,
