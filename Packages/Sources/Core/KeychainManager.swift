@@ -16,10 +16,10 @@ public class KeychainManager {
     private init() {
         // Check if running unsigned build by checking bundle identifier
         let bundleId = Bundle.main.bundleIdentifier ?? ""
-        // Don't use keychain if bundle ID contains "local" or if it's the default com.swiftgtd.app (unsigned)
-        self.useKeychain = false // Always disable keychain for unsigned builds
+        // Enable keychain for all builds - it should work even for unsigned builds
+        self.useKeychain = true
 
-        logger.log("🔐 Initializing KeychainManager (useKeychain: \(useKeychain))", category: "Keychain")
+        logger.log("🔐 Initializing KeychainManager (useKeychain: \(useKeychain), bundleId: \(bundleId))", category: "Keychain")
     }
 
     public func saveToken(_ token: String) -> Bool {
