@@ -7,7 +7,7 @@ import Combine
 @testable import Core
 
 /// Mock APIClient for testing DataManager toggle functionality
-class MockAPIClient: APIClientProtocol {
+class MockAPIClient: MockAPIClientBase {
     // Control test behavior
     var shouldThrowError = false
     var errorToThrow: Error?
@@ -20,23 +20,23 @@ class MockAPIClient: APIClientProtocol {
     var mockTags: [Tag] = []
     var mockUser = User(id: "test-user", email: "test@example.com", fullName: "Test User")
     
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
     
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
         return mockTags
     }
     
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
         return mockUser
     }
     
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
@@ -46,14 +46,14 @@ class MockAPIClient: APIClientProtocol {
         return mockNodes
     }
     
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
         return mockNodes
     }
     
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
@@ -63,7 +63,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
     
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
@@ -71,7 +71,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
     
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
@@ -84,14 +84,14 @@ class MockAPIClient: APIClientProtocol {
         return updatedNode
     }
     
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         if shouldThrowError, let error = errorToThrow {
             throw error
         }
         mockNodes.removeAll { $0.id == id }
     }
     
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         // Capture the call parameters for verification
         capturedToggleNodeId = nodeId
         capturedToggleCompletedState = currentlyCompleted
@@ -138,7 +138,7 @@ class MockAPIClient: APIClientProtocol {
         return toggled
     }
     
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -152,7 +152,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
     
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -171,7 +171,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
     
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -186,7 +186,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
     
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -200,7 +200,7 @@ class MockAPIClient: APIClientProtocol {
         return node
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }

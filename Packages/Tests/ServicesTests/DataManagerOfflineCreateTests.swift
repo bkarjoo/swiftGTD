@@ -110,10 +110,12 @@ final class DataManagerOfflineCreateTests: XCTestCase {
         
         // Assert
         XCTAssertNotNil(node, "Should create node offline")
-        // DataManager uses UUID().uuidString directly without "temp-" prefix
-        XCTAssertEqual(node!.id.count, 36, "ID should be UUID string (36 chars)")
-        // Verify it's a valid UUID format
-        XCTAssertNotNil(UUID(uuidString: node!.id), "Should be a valid UUID")
+        // DataManager uses temp- prefix for offline created nodes
+        XCTAssertEqual(node!.id.count, 41, "ID should be temp-UUID string (41 chars)")
+        XCTAssertTrue(node!.id.hasPrefix("temp-"), "Should have temp- prefix")
+        // Verify it's a valid UUID format after removing prefix
+        let uuidPart = String(node!.id.dropFirst(5)) // Remove "temp-"
+        XCTAssertNotNil(UUID(uuidString: uuidPart), "Should be a valid UUID after prefix")
     }
     
     func testOfflineCreate_generatesUniqueTempIds() async throws {
@@ -279,7 +281,8 @@ final class DataManagerOfflineCreateTests: XCTestCase {
         // Assert
         XCTAssertNotNil(child)
         XCTAssertEqual(child!.parentId, parent!.id, "Should set temp parent ID")
-        XCTAssertNotNil(UUID(uuidString: child!.parentId!), "Parent ID should be valid UUID")
+        let parentUuidPart = String(child!.parentId!.dropFirst(5)) // Remove "temp-"
+        XCTAssertNotNil(UUID(uuidString: parentUuidPart), "Parent ID should be valid UUID")
     }
     
     // MARK: - Queue Operation Tests
@@ -395,11 +398,15 @@ final class DataManagerOfflineCreateTests: XCTestCase {
         XCTAssertNotNil(task2)
         XCTAssertNotNil(subtask)
         
-        // All should have UUID IDs
-        XCTAssertNotNil(UUID(uuidString: folder!.id), "Folder should have valid UUID")
-        XCTAssertNotNil(UUID(uuidString: task1!.id), "Task1 should have valid UUID")
-        XCTAssertNotNil(UUID(uuidString: task2!.id), "Task2 should have valid UUID")
-        XCTAssertNotNil(UUID(uuidString: subtask!.id), "Subtask should have valid UUID")
+        // All should have temp-UUID IDs
+        let folderUuid = String(folder!.id.dropFirst(5))
+        let task1Uuid = String(task1!.id.dropFirst(5))
+        let task2Uuid = String(task2!.id.dropFirst(5))
+        let subtaskUuid = String(subtask!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: folderUuid), "Folder should have valid UUID")
+        XCTAssertNotNil(UUID(uuidString: task1Uuid), "Task1 should have valid UUID")
+        XCTAssertNotNil(UUID(uuidString: task2Uuid), "Task2 should have valid UUID")
+        XCTAssertNotNil(UUID(uuidString: subtaskUuid), "Subtask should have valid UUID")
         
         // Check parent relationships
         XCTAssertEqual(task1?.parentId, folder?.id)
@@ -431,6 +438,7 @@ final class DataManagerOfflineCreateTests: XCTestCase {
         // Assert - Offline node still exists locally
         XCTAssertNotNil(offlineNode)
         XCTAssertTrue(dataManager.nodes.contains(where: { $0.id == offlineNode!.id }))
-        XCTAssertNotNil(UUID(uuidString: offlineNode!.id), "Should be a valid UUID")
+        let offlineUuid = String(offlineNode!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: offlineUuid), "Should be a valid UUID")
     }
 }

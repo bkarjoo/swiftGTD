@@ -253,14 +253,8 @@ public struct TabbedTreeView: View {
             guard let currentTab = self.currentTab else { return event }
             let viewModel = currentTab.viewModel
 
-            // Don't process if modals are showing
-            if viewModel.showingDeleteAlert ||
-               viewModel.showingCreateDialog ||
-               viewModel.showingDetailsForNode != nil ||
-               viewModel.showingTagPickerForNode != nil ||
-               viewModel.showingHelpWindow ||
-               self.showingNewTabDialog ||
-               self.editingTabId != nil {
+            // Don't process if modals are showing (tab-specific ones need to be checked here)
+            if self.showingNewTabDialog || self.editingTabId != nil {
                 return event
             }
 
@@ -271,39 +265,12 @@ public struct TabbedTreeView: View {
                 }
             }
 
-            // Handle keyboard shortcuts
+            // Special handling for tab-specific shortcuts
             if event.modifierFlags.contains(.command) {
                 switch event.keyCode {
-                case 3: // F key - Focus (Cmd+Shift+F)
+                case 17: // T - new tab (Cmd+Shift+T)
                     if event.modifierFlags.contains(.shift) {
-                        logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TabbedTreeView")
-                        if let selectedId = viewModel.selectedNodeId,
-                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                            if selectedNode.nodeType != "note" {
-                                viewModel.focusedNodeId = selectedNode.id
-                                viewModel.expandedNodes.insert(selectedNode.id)
-                                NotificationCenter.default.post(name: .focusChanged, object: nil)
-                            }
-                        }
-                        return nil
-                    }
-
-                case 8: // C - Copy node names
-                    logger.log("⌨️ Cmd+C pressed - copy node names to clipboard", category: "TabbedTreeView")
-                    copyNodeNamesToClipboard(viewModel: viewModel)
-                    return nil
-                case 17: // T - tags/new tab
-                    if event.modifierFlags.contains(.shift) {
-                        // Cmd+Shift+T - New tab
                         self.addNewTab()
-                        return nil
-                    } else {
-                        // Cmd+T - Tags
-                        if let selectedId = viewModel.selectedNodeId,
-                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
-                           selectedNode.nodeType != "smart_folder" {
-                            viewModel.showingTagPickerForNode = selectedNode
-                        }
                         return nil
                     }
                 case 13: // W - close tab
@@ -311,32 +278,6 @@ public struct TabbedTreeView: View {
                         self.closeTab(tabId)
                         return nil
                     }
-                case 2: // D - details/delete
-                    if event.modifierFlags.contains(.shift) {
-                        // Cmd+Shift+D - Delete
-                        if let selectedId = viewModel.selectedNodeId,
-                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                            viewModel.deleteNode(selectedNode)
-                        }
-                        return nil
-                    } else {
-                        // Cmd+D - Details
-                        if let selectedId = viewModel.selectedNodeId,
-                           let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                            viewModel.showingDetailsForNode = selectedNode
-                        }
-                        return nil
-                    }
-                case 32: // U - Use template
-                    logger.log("⌨️ Cmd+U pressed - use template", category: "TabbedTreeView")
-                    if let selectedId = viewModel.selectedNodeId,
-                       let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
-                       selectedNode.nodeType == "template" {
-                        Task {
-                            await viewModel.instantiateTemplate(selectedNode)
-                        }
-                    }
-                    return nil
                 case 18: // 1 - Switch to tab 1
                     logger.log("⌨️ Cmd+1 pressed - switch to tab 1", category: "TabbedTreeView")
                     if tabs.count >= 1 {
@@ -392,57 +333,14 @@ public struct TabbedTreeView: View {
                     }
                     return nil
                 default:
+                    // Let viewModel handle all other command shortcuts
                     break
                 }
             }
 
-            // Handle space bar for editing
-            if event.keyCode == 49 { // Space
-                if let selectedId = viewModel.selectedNodeId {
-                    viewModel.isEditing = true
-                    return nil
-                }
-            }
-
-            // Handle creation shortcuts (T, F, N)
-            switch event.keyCode {
-            case 17 where !event.modifierFlags.contains(.command): // T - task
-                viewModel.createNodeType = "task"
-                viewModel.createNodeTitle = ""
-                viewModel.createNodeParentId = nil  // Clear any previous parent ID
-                self.activeCreateVM = viewModel
+            // Delegate all other keyboard handling to the ViewModel
+            if viewModel.handleKeyPress(keyCode: event.keyCode, modifiers: event.modifierFlags) {
                 return nil
-            case 3 where !event.modifierFlags.contains(.command): // F - folder
-                viewModel.createNodeType = "folder"
-                viewModel.createNodeTitle = ""
-                viewModel.createNodeParentId = nil  // Clear any previous parent ID
-                self.activeCreateVM = viewModel
-                return nil
-            case 45: // N - note
-                viewModel.createNodeType = "note"
-                viewModel.createNodeTitle = ""
-                viewModel.createNodeParentId = nil  // Clear any previous parent ID
-                self.activeCreateVM = viewModel
-                return nil
-            case 47: // . - toggle task
-                if let selectedId = viewModel.selectedNodeId,
-                   let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
-                   selectedNode.nodeType == "task" {
-                    viewModel.toggleTaskStatus(selectedNode)
-                    return nil
-                }
-            case 4: // H - Help
-                logger.log("⌨️ H pressed - showing help", category: "TabbedTreeView")
-                viewModel.showingHelpWindow = true
-                return nil
-            case 12: // Q - Quick add to default folder
-                logger.log("⌨️ Q pressed - quick add to default folder", category: "TabbedTreeView")
-                Task {
-                    await handleQuickAddToDefaultFolder(viewModel: viewModel)
-                }
-                return nil
-            default:
-                break
             }
 
             return event
@@ -511,29 +409,26 @@ public struct TabbedTreeView: View {
             Task {
                 for (index, tabState) in state.tabs.enumerated() {
                     let tab = tabs[index]
-                    await tab.viewModel.loadAllNodes()
+                    await tab.viewModel.initialLoad()
 
                     // Restore focused node if it still exists
                     if let focusedId = tabState.focusedNodeId {
                         if let focusedNode = tab.viewModel.allNodes.first(where: { $0.id == focusedId }) {
                             // Re-set both focused node and selected node after loading
-                            tab.viewModel.focusedNodeId = focusedId
-                            tab.viewModel.selectedNodeId = focusedId
-
-                            // Expand the focused node and all its ancestors
-                            tab.viewModel.expandedNodes.insert(focusedId)
+                            tab.viewModel.setFocusedNode(focusedId)
+                            tab.viewModel.setSelectedNode(focusedId)
 
                             // Expand all parent nodes up to root
                             let parentChain = tab.viewModel.getParentChain(for: focusedNode)
                             for parent in parentChain {
-                                tab.viewModel.expandedNodes.insert(parent.id)
+                                tab.viewModel.expandNode(parent.id)
                             }
 
                             logger.log("✅ Restored focus and selection for tab '\(tab.title)' to node: \(focusedId) with \(parentChain.count) expanded parents", category: "TabbedTreeView")
                         } else {
                             // Node was deleted, reset focus
-                            tab.viewModel.focusedNodeId = nil
-                            tab.viewModel.selectedNodeId = nil
+                            tab.viewModel.setFocusedNode(nil)
+                            tab.viewModel.setSelectedNode(nil)
                             logger.log("ℹ️ Focused node deleted for tab '\(tab.title)', reset to root", category: "TabbedTreeView")
                         }
                     }
@@ -588,32 +483,28 @@ public struct TabbedTreeView: View {
     }
 
     private func handleQuickAddToDefaultFolder(viewModel: TreeViewModel) async {
-        do {
-            // Get the default folder ID
-            guard let defaultNodeId = try await APIClient.shared.getDefaultNode() else {
-                logger.log("⚠️ No default folder set", level: .warning, category: "TabbedTreeView")
-                // Could show an alert here if desired
-                return
-            }
-
-            // Find the default folder in the current nodes
-            guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
-                logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TabbedTreeView")
-                return
-            }
-
-            logger.log("✅ Quick add to default folder: \(defaultFolder.title)", category: "TabbedTreeView")
-
-            // Set up for creating a task in the default folder
-            viewModel.createNodeType = "task"
-            viewModel.createNodeTitle = ""
-            viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
-
-            // Show the create dialog
-            self.activeCreateVM = viewModel
-        } catch {
-            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "TabbedTreeView")
+        // Get the default folder ID
+        guard let defaultNodeId = await dataManager.getDefaultFolder() else {
+            logger.log("⚠️ No default folder set", level: .warning, category: "TabbedTreeView")
+            // Could show an alert here if desired
+            return
         }
+
+        // Find the default folder in the current nodes
+        guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
+            logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TabbedTreeView")
+            return
+        }
+
+        logger.log("✅ Quick add to default folder: \(defaultFolder.title)", category: "TabbedTreeView")
+
+        // Set up for creating a task in the default folder
+        viewModel.createNodeType = "task"
+        viewModel.createNodeTitle = ""
+        viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
+
+        // Show the create dialog
+        self.activeCreateVM = viewModel
     }
 
     private func setupStateChangeObservers() {

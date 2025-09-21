@@ -29,38 +29,38 @@ class MockReconnectNetworkMonitor: NetworkMonitorProtocol {
 }
 
 /// Mock API client that can simulate sync operations
-class MockSyncAPIClient: APIClientProtocol {
+class MockSyncAPIClient: MockAPIClientBase {
     var pendingOperationsProcessed = false
     var tempIdMap: [String: String] = [:]
     var fetchedNodes: [Node] = []
     var processedOperations: [(type: String, nodeId: String)] = []
     
     // MARK: - Auth
-    func setAuthToken(_ token: String?) {
+    override func setAuthToken(_ token: String?) {
         // Mock implementation
     }
     
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         return User(id: "test-user", email: "test@example.com", fullName: "Test User")
     }
     
     // MARK: - Core Node Operations
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         return fetchedNodes.filter { $0.parentId == parentId }
     }
     
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return fetchedNodes
     }
     
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         if let node = fetchedNodes.first(where: { $0.id == id }) {
             return node
         }
         throw APIError.httpError(404)
     }
     
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         let serverId = "server-\(UUID().uuidString.prefix(8))"
         tempIdMap[node.id] = serverId
         
@@ -82,7 +82,7 @@ class MockSyncAPIClient: APIClientProtocol {
         return serverNode
     }
     
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         processedOperations.append((type: "update", nodeId: id))
         
         let formatter = ISO8601DateFormatter()
@@ -103,17 +103,17 @@ class MockSyncAPIClient: APIClientProtocol {
         )
     }
     
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         processedOperations.append((type: "delete", nodeId: id))
     }
     
     // MARK: - Tags
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return []
     }
     
     // MARK: - Task Operations
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         processedOperations.append((type: "toggle", nodeId: nodeId))
         
         let formatter = ISO8601DateFormatter()
@@ -135,7 +135,7 @@ class MockSyncAPIClient: APIClientProtocol {
     }
     
     // MARK: - Specialized Node Creation
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         let formatter = ISO8601DateFormatter()
         let node = Node(
             id: "server-\(UUID().uuidString.prefix(8))",
@@ -151,7 +151,7 @@ class MockSyncAPIClient: APIClientProtocol {
         return node
     }
     
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         let formatter = ISO8601DateFormatter()
         let node = Node(
             id: "server-\(UUID().uuidString.prefix(8))",
@@ -172,7 +172,7 @@ class MockSyncAPIClient: APIClientProtocol {
         return node
     }
     
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         let formatter = ISO8601DateFormatter()
         let node = Node(
             id: "server-\(UUID().uuidString.prefix(8))",
@@ -189,7 +189,7 @@ class MockSyncAPIClient: APIClientProtocol {
         return node
     }
     
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         let formatter = ISO8601DateFormatter()
         let node = Node(
             id: "server-\(UUID().uuidString.prefix(8))",
@@ -205,7 +205,7 @@ class MockSyncAPIClient: APIClientProtocol {
         return node
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }
@@ -355,8 +355,10 @@ final class DataManagerSyncOnReconnectTests: XCTestCase {
         
         XCTAssertNotNil(parent)
         XCTAssertNotNil(child)
-        XCTAssertNotNil(UUID(uuidString: parent!.id), "Should have temp UUID")
-        XCTAssertNotNil(UUID(uuidString: child!.id), "Should have temp UUID")
+        let parentUuid = String(parent!.id.dropFirst(5))
+        let childUuid = String(child!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: parentUuid), "Should have temp UUID")
+        XCTAssertNotNil(UUID(uuidString: childUuid), "Should have temp UUID")
         XCTAssertEqual(child?.parentId, parent?.id, "Should reference temp parent ID")
         
         // Setup mock to return server IDs

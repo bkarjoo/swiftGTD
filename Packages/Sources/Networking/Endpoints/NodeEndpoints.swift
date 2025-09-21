@@ -367,7 +367,22 @@ public extension APIClient {
             responseType: Node.self
         )
     }
-    
+
+    /// Instantiate a template to create a copy with all its contents (without explicit name)
+    /// - Parameters:
+    ///   - templateId: The template ID to instantiate
+    ///   - parentId: Optional parent ID (if nil, uses template's target_node_id)
+    /// - Returns: The created node
+    func instantiateTemplate(templateId: String, parentId: String? = nil) async throws -> Node {
+        // Generate default name with current date
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM d"
+        let dateString = dateFormatter.string(from: Date())
+        let name = "Template - \(dateString)"
+
+        return try await instantiateTemplate(templateId: templateId, name: name, parentId: parentId)
+    }
+
     /// Instantiate a template to create a copy with all its contents
     /// - Parameters:
     ///   - templateId: The template ID to instantiate

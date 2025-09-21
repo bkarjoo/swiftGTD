@@ -13,7 +13,7 @@ xcodebuild -scheme SwiftGTD-macOS \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGN_ENTITLEMENTS="" \
-    PRODUCT_BUNDLE_IDENTIFIER="com.local.SwiftGTD-macOS" \
+    PRODUCT_BUNDLE_IDENTIFIER="com.swiftgtd.app" \
     build 2>&1 | while IFS= read -r line; do
         # Show progress but filter out noise
         if echo "$line" | grep -E "(Building|Compiling|Linking|Processing|Copying|▸|warning:|error:|BUILD|FAILED|Succeeded)" > /dev/null; then

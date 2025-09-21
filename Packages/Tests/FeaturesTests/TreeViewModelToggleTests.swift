@@ -124,7 +124,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         
         mockDataManager.mockNodes = [task1, task2, folder]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial state
         XCTAssertEqual(treeViewModel.allNodes.count, 3)
@@ -195,7 +195,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         
         mockDataManager.mockNodes = [parentFolder, childTask, siblingTask]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial children
         let initialChildren = treeViewModel.getChildren(of: "parent")
@@ -240,7 +240,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         
         mockDataManager.mockNodes = [task]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Initial state
         XCTAssertEqual(treeViewModel.allNodes[0].taskData?.status, "todo")
@@ -292,7 +292,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         
         mockDataManager.mockNodes = [folder]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Act - Try to toggle a folder
         treeViewModel.toggleTaskStatus(folder)
@@ -328,7 +328,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         mockDataManager.mockNodes = [task]
         mockDataManager.shouldFailToggle = true
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Act - Attempt toggle that will fail
         treeViewModel.toggleTaskStatus(task)
@@ -386,7 +386,7 @@ final class TreeViewModelToggleTests: XCTestCase {
         
         mockDataManager.mockNodes = [task1, task2, task3]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial sort order
         let rootNodes = treeViewModel.getRootNodes()

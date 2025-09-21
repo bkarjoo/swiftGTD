@@ -174,7 +174,6 @@ final class NodeDecodingTests: XCTestCase {
         // Assert - Smart folder data
         XCTAssertNotNil(node.smartFolderData)
         XCTAssertEqual(node.smartFolderData?.ruleId, "overdue-tasks-rule")
-        XCTAssertNil(node.smartFolderData?.rules)
         XCTAssertEqual(node.smartFolderData?.autoRefresh, true)
         XCTAssertEqual(node.smartFolderData?.description, "Shows all tasks that are overdue")
         

@@ -242,18 +242,18 @@ final class NoteNodeTests: XCTestCase {
 
 // MARK: - Mock API Client for Note Tests
 
-class MockNoteAPIClient: APIClientProtocol {
+class MockNoteAPIClient: MockAPIClientBase {
     var mockNodes: [Node] = []
     var mockTags: [Tag] = []
     var shouldThrowError = false
 
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
 
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         return User(id: "test", email: "test@example.com", fullName: "Test User")
     }
 
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         if let parentId = parentId {
             // Don't allow getting children of note nodes
             if let parent = mockNodes.first(where: { $0.id == parentId }),
@@ -265,18 +265,18 @@ class MockNoteAPIClient: APIClientProtocol {
         return mockNodes
     }
 
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return mockNodes
     }
 
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         guard let node = mockNodes.first(where: { $0.id == id }) else {
             throw APIError.httpError(404)
         }
         return node
     }
 
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         // Validate that parent is not a note
         if let parentId = node.parentId,
            let parent = mockNodes.first(where: { $0.id == parentId }),
@@ -288,7 +288,7 @@ class MockNoteAPIClient: APIClientProtocol {
         return node
     }
 
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         guard let index = mockNodes.firstIndex(where: { $0.id == id }) else {
             throw APIError.httpError(404)
         }
@@ -313,26 +313,26 @@ class MockNoteAPIClient: APIClientProtocol {
         return node
     }
 
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         mockNodes.removeAll { $0.id == id }
     }
 
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return mockTags
     }
 
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         guard let node = mockNodes.first(where: { $0.id == nodeId }) else {
             throw APIError.httpError(404)
         }
         return node
     }
 
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         return try await createGenericNode(title: title, nodeType: "folder", parentId: parentId)
     }
 
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -346,7 +346,7 @@ class MockNoteAPIClient: APIClientProtocol {
         return try await createNode(node)
     }
 
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         // Validate parent is not a note
         if let parentId = parentId,
            let parent = mockNodes.first(where: { $0.id == parentId }),
@@ -367,7 +367,7 @@ class MockNoteAPIClient: APIClientProtocol {
         return try await createNode(node)
     }
 
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -380,7 +380,7 @@ class MockNoteAPIClient: APIClientProtocol {
         return try await createNode(node)
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         return []
     }
 }

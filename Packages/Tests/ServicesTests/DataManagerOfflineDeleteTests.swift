@@ -209,7 +209,8 @@ final class DataManagerOfflineDeleteTests: XCTestCase {
         )
         
         XCTAssertNotNil(tempNode)
-        XCTAssertNotNil(UUID(uuidString: tempNode!.id), "Should have UUID as temp ID")
+        let tempUuid = String(tempNode!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: tempUuid), "Should have UUID as temp ID")
         XCTAssertEqual(dataManager.nodes.count, 1)
         
         // Act - Delete temp node

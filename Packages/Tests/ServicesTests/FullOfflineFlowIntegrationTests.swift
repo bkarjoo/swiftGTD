@@ -66,7 +66,8 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
 
         XCTAssertNotNil(created, "Should create node offline")
         XCTAssertEqual(created?.title, createTitle)
-        XCTAssertNotNil(UUID(uuidString: created!.id), "Should have valid UUID")
+        let createdUuid = String(created!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: createdUuid), "Should have valid UUID")
         let _ = created!.id
 
         // Verify node is in local state
@@ -77,22 +78,17 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
         let updatedTitle = "Edited Offline Task"
         // Create updated node
         let nodeToUpdate = created!
-        let updated = Node(
-            id: nodeToUpdate.id,
+        let update = NodeUpdate(
             title: updatedTitle,
-            nodeType: nodeToUpdate.nodeType,
             parentId: nodeToUpdate.parentId,
-            ownerId: nodeToUpdate.ownerId,
-            createdAt: nodeToUpdate.createdAt,
-            updatedAt: ISO8601DateFormatter().string(from: Date()),
-            sortOrder: 100,
-            taskData: nodeToUpdate.taskData
+            sortOrder: 100
         )
-        await dataManager.updateNode(updated)
+        let updated = await dataManager.updateNode(nodeToUpdate.id, update: update)
 
-        // updateNode returns void, so verify through the updated node we created
-        XCTAssertEqual(updated.title, updatedTitle)
-        XCTAssertEqual(updated.sortOrder, 100)
+        // Verify the update succeeded
+        XCTAssertNotNil(updated)
+        XCTAssertEqual(updated?.title, updatedTitle)
+        XCTAssertEqual(updated?.sortOrder, 100)
 
         // Toggle task completion offline
         let toggled = await dataManager.toggleNodeCompletion(created!)
@@ -170,18 +166,12 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
 
         // Edit children offline
         let childToUpdate = child1!
-        let updatedChild1Node = Node(
-            id: childToUpdate.id,
+        let updateChild1 = NodeUpdate(
             title: "Updated Child 1",
-            nodeType: childToUpdate.nodeType,
             parentId: parentTempId,
-            ownerId: childToUpdate.ownerId,
-            createdAt: childToUpdate.createdAt,
-            updatedAt: ISO8601DateFormatter().string(from: Date()),
-            sortOrder: 1,
-            taskData: childToUpdate.taskData
+            sortOrder: 1
         )
-        await dataManager.updateNode(updatedChild1Node)
+        await dataManager.updateNode(childToUpdate.id, update: updateChild1)
 
         let toggledChild2 = await dataManager.toggleNodeCompletion(child2!)
 
@@ -272,36 +262,24 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
 
         // Edit multiple nodes
         let projectToUpdate = project!
-        let updatedProject = Node(
-            id: projectToUpdate.id,
+        let updateProject = NodeUpdate(
             title: "Renamed Project",
-            nodeType: projectToUpdate.nodeType,
             parentId: nil,
-            ownerId: projectToUpdate.ownerId,
-            createdAt: projectToUpdate.createdAt,
-            updatedAt: ISO8601DateFormatter().string(from: Date()),
-            sortOrder: 10,
-            taskData: projectToUpdate.taskData
+            sortOrder: 10
         )
-        let _ = await dataManager.updateNode(updatedProject)
+        let _ = await dataManager.updateNode(projectToUpdate.id, update: updateProject)
 
         let _ = await dataManager.toggleNodeCompletion(task1!)
         let _ = await dataManager.toggleNodeCompletion(task2!)
 
         // Move task from project to area
         let task1ToUpdate = task1!
-        let movedTask = Node(
-            id: task1ToUpdate.id,
+        let moveTaskUpdate = NodeUpdate(
             title: task1ToUpdate.title,
-            nodeType: task1ToUpdate.nodeType,
             parentId: area?.id,
-            ownerId: task1ToUpdate.ownerId,
-            createdAt: task1ToUpdate.createdAt,
-            updatedAt: ISO8601DateFormatter().string(from: Date()),
-            sortOrder: task1ToUpdate.sortOrder,
-            taskData: task1ToUpdate.taskData
+            sortOrder: task1ToUpdate.sortOrder
         )
-        let _ = await dataManager.updateNode(movedTask)
+        let _ = await dataManager.updateNode(task1ToUpdate.id, update: moveTaskUpdate)
 
         // Delete original project
         await dataManager.deleteNode(project!)
@@ -351,18 +329,12 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
 
         // Edit first node offline
         let nodeToEdit = node1!
-        let editedNode = Node(
-            id: nodeToEdit.id,
+        let editNodeUpdate = NodeUpdate(
             title: "Edited While Offline Again",
-            nodeType: nodeToEdit.nodeType,
             parentId: nil,
-            ownerId: nodeToEdit.ownerId,
-            createdAt: nodeToEdit.createdAt,
-            updatedAt: ISO8601DateFormatter().string(from: Date()),
-            sortOrder: 50,
-            taskData: nodeToEdit.taskData
+            sortOrder: 50
         )
-        await dataManager.updateNode(editedNode)
+        await dataManager.updateNode(nodeToEdit.id, update: editNodeUpdate)
         // updateNode returns void
 
         // Phase 4: Go online again, final sync
@@ -377,38 +349,38 @@ public final class FullOfflineFlowIntegrationTests: XCTestCase {
 
 // MARK: - Mock Integration API Client
 
-class MockIntegrationAPIClient: APIClientProtocol {
+class MockIntegrationAPIClient: MockAPIClientBase {
     var mockNodes: [Node] = []
     var operationsProcessed: [(type: String, node: Node)] = []
     private var idMappings: [String: String] = [:]
     private var nodeIdCounter = 0
 
     // MARK: - Auth
-    func setAuthToken(_ token: String?) {
+    override func setAuthToken(_ token: String?) {
         // Mock implementation
     }
 
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         return User(id: "test-user", email: "test@example.com", fullName: "Test User")
     }
 
     // MARK: - Core Node Operations
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         return mockNodes.filter { $0.parentId == parentId }
     }
 
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return mockNodes
     }
 
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         if let node = mockNodes.first(where: { $0.id == id }) {
             return node
         }
         throw APIError.notFound
     }
 
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         let serverId = "server-\(nodeIdCounter)"
         nodeIdCounter += 1
 
@@ -433,7 +405,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         return serverNode
     }
 
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         guard let index = mockNodes.firstIndex(where: { $0.id == id }) else {
             throw APIError.notFound
         }
@@ -459,7 +431,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         return updatedNode
     }
 
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         mockNodes.removeAll { $0.id == id }
         let formatter = ISO8601DateFormatter()
         operationsProcessed.append((type: "delete", node: Node(
@@ -475,12 +447,12 @@ class MockIntegrationAPIClient: APIClientProtocol {
     }
 
     // MARK: - Tags
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return []
     }
 
     // MARK: - Task Operations
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         guard let index = mockNodes.firstIndex(where: { $0.id == nodeId }) else {
             throw APIError.notFound
         }
@@ -511,7 +483,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
     }
 
     // MARK: - Specialized node creation
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -524,7 +496,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         ))
     }
 
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -538,7 +510,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         ))
     }
 
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -552,7 +524,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         ))
     }
 
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -565,7 +537,7 @@ class MockIntegrationAPIClient: APIClientProtocol {
         ))
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }

@@ -220,64 +220,64 @@ final class SmartFolderRestrictionTests: XCTestCase {
 
 // MARK: - Mock API Client for Smart Folder Tests
 
-class MockSmartFolderAPIClient: APIClientProtocol {
+class MockSmartFolderAPIClient: MockAPIClientBase {
     var mockNodes: [Node] = []
     var mockTags: [Tag] = []
     var smartFolderResults: [String: [Node]] = [:]
     var shouldThrowError = false
 
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
 
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         return User(id: "test", email: "test@example.com", fullName: "Test User")
     }
 
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         if let parentId = parentId {
             return mockNodes.filter { $0.parentId == parentId }
         }
         return mockNodes
     }
 
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return mockNodes
     }
 
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         guard let node = mockNodes.first(where: { $0.id == id }) else {
             throw APIError.httpError(404)
         }
         return node
     }
 
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         mockNodes.append(node)
         return node
     }
 
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         guard let index = mockNodes.firstIndex(where: { $0.id == id }) else {
             throw APIError.httpError(404)
         }
         return mockNodes[index]
     }
 
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         mockNodes.removeAll { $0.id == id }
     }
 
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return mockTags
     }
 
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         guard let node = mockNodes.first(where: { $0.id == nodeId }) else {
             throw APIError.httpError(404)
         }
         return node
     }
 
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -291,7 +291,7 @@ class MockSmartFolderAPIClient: APIClientProtocol {
         return node
     }
 
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -306,7 +306,7 @@ class MockSmartFolderAPIClient: APIClientProtocol {
         return node
     }
 
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -321,7 +321,7 @@ class MockSmartFolderAPIClient: APIClientProtocol {
         return node
     }
 
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         let node = Node(
             id: UUID().uuidString,
             title: title,
@@ -335,7 +335,7 @@ class MockSmartFolderAPIClient: APIClientProtocol {
         return node
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         if shouldThrowError {
             throw APIError.httpError(500)
         }

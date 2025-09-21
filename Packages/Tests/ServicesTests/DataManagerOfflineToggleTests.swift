@@ -158,7 +158,8 @@ final class DataManagerOfflineToggleTests: XCTestCase {
         )
         
         XCTAssertNotNil(task)
-        XCTAssertNotNil(UUID(uuidString: task!.id), "Should have UUID as temp ID")
+        let taskUuid = String(task!.id.dropFirst(5))
+        XCTAssertNotNil(UUID(uuidString: taskUuid), "Should have UUID as temp ID")
         
         // Act - Toggle the temp task
         let toggled = await dataManager.toggleNodeCompletion(task!)

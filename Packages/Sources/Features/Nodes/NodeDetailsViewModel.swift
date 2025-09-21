@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import Models
 import Services
-import Networking
 import Core
 
 @MainActor
@@ -78,8 +77,11 @@ public class NodeDetailsViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let api = APIClient.shared
-            let loadedNode = try await api.getNode(id: nodeId)
+            guard let dataManager = dataManager else {
+                logger.error("No DataManager available", category: "NodeDetailsViewModel")
+                return
+            }
+            let loadedNode = try await dataManager.getNode(id: nodeId)
             
             await MainActor.run {
                 self.node = loadedNode
@@ -153,12 +155,15 @@ public class NodeDetailsViewModel: ObservableObject {
         logger.log("📞 Loading available rules", category: "NodeDetailsViewModel")
         
         do {
-            let api = APIClient.shared
-            let response = try await api.getRules(includePublic: true, includeSystem: true)
-            
+            guard let dataManager = dataManager else {
+                logger.error("No DataManager available", category: "NodeDetailsViewModel")
+                return
+            }
+            let rules = try await dataManager.getRules(includePublic: true, includeSystem: true)
+
             await MainActor.run {
-                self.availableRules = response.rules.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                logger.log("✅ Loaded \(response.rules.count) available rules", category: "NodeDetailsViewModel")
+                self.availableRules = rules.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                logger.log("✅ Loaded \(rules.count) available rules", category: "NodeDetailsViewModel")
             }
         } catch {
             logger.log("❌ Failed to load rules: \(error)", level: .error, category: "NodeDetailsViewModel")
@@ -342,8 +347,11 @@ public class NodeDetailsViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            let api = APIClient.shared
-            
+            guard let dataManager = dataManager else {
+                logger.error("No DataManager available for save", category: "NodeDetailsViewModel")
+                return
+            }
+
             // Create update request
             let taskDataUpdate: TaskDataUpdate?
             if node.nodeType == "task" {
@@ -411,7 +419,7 @@ public class NodeDetailsViewModel: ObservableObject {
                 smartFolderData: smartFolderDataUpdate
             )
             
-            let updatedNode = try await api.updateNode(id: node.id, update: nodeUpdate)
+            let updatedNode = try await dataManager.updateNode(id: node.id, update: nodeUpdate)
             
             await MainActor.run {
                 self.node = updatedNode
@@ -447,8 +455,11 @@ public class NodeDetailsViewModel: ObservableObject {
         logger.log("📞 Reloading tags only for node: \(nodeId)", category: "NodeDetailsViewModel")
 
         do {
-            let api = APIClient.shared
-            let freshNode = try await api.getNode(id: nodeId)
+            guard let dataManager = dataManager else {
+                logger.error("No DataManager available", category: "NodeDetailsViewModel")
+                return
+            }
+            let freshNode = try await dataManager.getNode(id: nodeId)
 
             await MainActor.run {
                 // Update only the tags, preserving all other changes

@@ -683,4 +683,193 @@ public class DataManager: ObservableObject {
             return nil
         }
     }
+
+    // MARK: - Default Folder Management
+
+    /// Gets the current default folder ID from settings
+    public func getDefaultFolder() async -> String? {
+        logger.log("📞 getDefaultFolder called", category: "DataManager")
+
+        do {
+            let defaultNodeId = try await api.getDefaultNode()
+            logger.log("✅ Got default folder: \(defaultNodeId ?? "none")", category: "DataManager")
+            return defaultNodeId
+        } catch {
+            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "DataManager")
+            return nil
+        }
+    }
+
+    /// Sets the default folder ID in settings
+    public func setDefaultFolder(nodeId: String?) async -> Bool {
+        logger.log("📞 setDefaultFolder called with nodeId: \(nodeId ?? "nil")", category: "DataManager")
+
+        do {
+            try await api.setDefaultNode(nodeId: nodeId)
+            logger.log("✅ Set default folder to: \(nodeId ?? "none")", category: "DataManager")
+            return true
+        } catch {
+            logger.log("❌ Failed to set default folder: \(error)", level: .error, category: "DataManager")
+            return false
+        }
+    }
+
+    // MARK: - Template Instantiation
+
+    /// Instantiates a template with optional parent override
+    public func instantiateTemplate(templateId: String, parentId: String? = nil) async -> Node? {
+        logger.log("📞 instantiateTemplate called", category: "DataManager")
+        logger.log("   Template ID: \(templateId)", category: "DataManager")
+        logger.log("   Parent ID: \(parentId ?? "nil")", category: "DataManager")
+
+        do {
+            let newNode = try await api.instantiateTemplate(
+                templateId: templateId,
+                parentId: parentId
+            )
+
+            logger.log("✅ Template instantiated successfully", category: "DataManager")
+            logger.log("   New node ID: \(newNode.id)", category: "DataManager")
+            logger.log("   New node title: \(newNode.title)", category: "DataManager")
+
+            // Refresh nodes to include the new one
+            await syncAllData()
+
+            return newNode
+        } catch {
+            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "DataManager")
+            errorMessage = "Failed to instantiate template: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    // MARK: - Node Refresh
+
+    /// Refreshes a single node from the API
+    public func refreshNode(_ nodeId: String) async {
+        logger.log("📞 refreshNode called for: \(nodeId)", category: "DataManager")
+
+        do {
+            let updatedNode = try await api.getNode(id: nodeId)
+
+            // Update the node in our nodes array
+            if let index = nodes.firstIndex(where: { $0.id == nodeId }) {
+                nodes[index] = updatedNode
+                logger.log("✅ Node refreshed: \(updatedNode.title)", category: "DataManager")
+            } else {
+                // Node not found locally, add it
+                nodes.append(updatedNode)
+                logger.log("✅ Node added: \(updatedNode.title)", category: "DataManager")
+            }
+        } catch {
+            logger.error("❌ Failed to refresh node: \(error)", category: "DataManager")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Tag Management
+
+    /// Search for tags by query
+    public func searchTags(query: String, limit: Int = 10) async throws -> [Tag] {
+        logger.log("📞 searchTags called with query: \(query)", category: "DataManager")
+        return try await api.searchTags(query: query, limit: limit)
+    }
+
+    /// Create a new tag
+    public func createTag(name: String, description: String? = nil, color: String? = nil) async throws -> Tag {
+        logger.log("📞 createTag called with name: \(name)", category: "DataManager")
+        let tag = try await api.createTag(name: name, description: description, color: color)
+        // Refresh tags list
+        await loadTags()
+        return tag
+    }
+
+    /// Attach a tag to a node
+    public func attachTagToNode(nodeId: String, tagId: String) async throws {
+        logger.log("📞 attachTagToNode called - node: \(nodeId), tag: \(tagId)", category: "DataManager")
+        try await api.attachTagToNode(nodeId: nodeId, tagId: tagId)
+        // Refresh the specific node to update its tags
+        await refreshNode(nodeId)
+    }
+
+    /// Detach a tag from a node
+    public func detachTagFromNode(nodeId: String, tagId: String) async throws {
+        logger.log("📞 detachTagFromNode called - node: \(nodeId), tag: \(tagId)", category: "DataManager")
+        try await api.detachTagFromNode(nodeId: nodeId, tagId: tagId)
+        // Refresh the specific node to update its tags
+        await refreshNode(nodeId)
+    }
+
+    // MARK: - Node Updates
+
+    /// Update a node with the given changes
+    public func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+        logger.log("📞 updateNode called for id: \(id)", category: "DataManager")
+        let updatedNode = try await api.updateNode(id: id, update: update)
+
+        // Update the node in our local array
+        if let index = nodes.firstIndex(where: { $0.id == id }) {
+            nodes[index] = updatedNode
+            logger.log("✅ Node updated locally: \(updatedNode.title)", category: "DataManager")
+        }
+
+        return updatedNode
+    }
+
+    /// Get a single node by ID
+    public func getNode(id: String) async throws -> Node {
+        logger.log("📞 getNode called for id: \(id)", category: "DataManager")
+
+        // First check if we have it locally
+        if let localNode = nodes.first(where: { $0.id == id }) {
+            logger.log("✅ Found node locally: \(localNode.title)", category: "DataManager")
+            return localNode
+        }
+
+        // Otherwise fetch from API
+        let node = try await api.getNode(id: id)
+        logger.log("✅ Fetched node from API: \(node.title)", category: "DataManager")
+        return node
+    }
+
+    /// Get all rules
+    public func getRules(includePublic: Bool = true, includeSystem: Bool = true) async throws -> [Rule] {
+        logger.log("📞 getRules called", category: "DataManager")
+        let response = try await api.getRules(includePublic: includePublic, includeSystem: includeSystem)
+        return response.rules
+    }
+
+    /// Get tags for the current account
+    public func getTags() async throws -> [Tag] {
+        logger.log("📞 getTags called", category: "DataManager")
+        return try await api.getTags()
+    }
+
+    // MARK: - Smart Folder Execution
+
+    /// Executes a smart folder rule and returns the result nodes
+    public func executeSmartFolder(nodeId: String) async -> [Node] {
+        logger.log("📞 executeSmartFolder called for node: \(nodeId)", category: "DataManager")
+
+        do {
+            let resultNodes = try await api.executeSmartFolderRule(smartFolderId: nodeId)
+
+            logger.log("✅ Smart folder executed successfully", category: "DataManager")
+            logger.log("   Returned \(resultNodes.count) nodes", category: "DataManager")
+
+            // Log first few results for debugging
+            for (index, node) in resultNodes.prefix(3).enumerated() {
+                logger.log("   Result \(index + 1): \(node.title) (type: \(node.nodeType))", category: "DataManager")
+            }
+            if resultNodes.count > 3 {
+                logger.log("   ... and \(resultNodes.count - 3) more nodes", category: "DataManager")
+            }
+
+            return resultNodes
+        } catch {
+            logger.log("❌ Failed to execute smart folder: \(error)", level: .error, category: "DataManager")
+            errorMessage = "Failed to execute smart folder: \(error.localizedDescription)"
+            return []
+        }
+    }
 }

@@ -100,7 +100,7 @@ final class TreeViewModelLoadTests: XCTestCase {
         treeViewModel.setDataManager(mockDataManager)
         
         // Act
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Assert - Verify DataManager was called
         XCTAssertTrue(mockDataManager.syncAllDataCalled, "Should call syncAllData on DataManager")
@@ -150,7 +150,7 @@ final class TreeViewModelLoadTests: XCTestCase {
         treeViewModel.setDataManager(mockDataManager)
         
         // Act
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Assert
         XCTAssertTrue(mockDataManager.syncAllDataCalled, "Should call syncAllData")
@@ -235,7 +235,7 @@ final class TreeViewModelLoadTests: XCTestCase {
         treeViewModel.setDataManager(mockDataManager)
         
         // Act
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Assert - Hierarchy
         let rootNodes = treeViewModel.getRootNodes()
@@ -276,7 +276,7 @@ final class TreeViewModelLoadTests: XCTestCase {
         treeViewModel.setDataManager(mockDataManager)
         
         // Act - Load initially
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial state
         XCTAssertEqual(treeViewModel.allNodes.count, 1)
@@ -359,7 +359,7 @@ final class TreeViewModelLoadTests: XCTestCase {
         treeViewModel.setDataManager(mockDataManager)
         
         // Act
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Get parent chain for level3
         let parentChain = treeViewModel.getParentChain(for: level3)

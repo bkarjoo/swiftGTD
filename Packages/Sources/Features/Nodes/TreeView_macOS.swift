@@ -41,11 +41,11 @@ public struct TreeView_macOS: View {
                         parentChain: viewModel.currentFocusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
                         onNodeTap: { nodeId in
                             logger.log("🎯 TreeView: Setting focusedNodeId to \(nodeId)", category: "TreeView")
-                            viewModel.focusedNodeId = nodeId
+                            viewModel.setFocusedNode(nodeId)
                         },
                         onExitFocus: {
                             logger.log("🎯 TreeView: Clearing focusedNodeId", category: "TreeView")
-                            viewModel.focusedNodeId = nil
+                            viewModel.setFocusedNode(nil)
                         }
                     )
                 }
@@ -104,13 +104,13 @@ public struct TreeView_macOS: View {
 
                     switch direction {
                     case .up:
-                        moveToPreviousSibling()
+                        viewModel.navigateToNode(direction: .up)
                     case .down:
-                        moveToNextSibling()
+                        viewModel.navigateToNode(direction: .down)
                     case .left:
-                        moveToParent()
+                        viewModel.navigateToNode(direction: .left)
                     case .right:
-                        moveToFirstChild()
+                        viewModel.navigateToNode(direction: .right)
                     default:
                         break
                     }
@@ -151,7 +151,7 @@ public struct TreeView_macOS: View {
             }
             .sheet(item: $viewModel.showingNoteEditorForNode) { node in
                 NoteEditorView(node: node) {
-                    await viewModel.loadAllNodes()
+                    await viewModel.refreshNodes()
                 }
             }
             .sheet(item: $viewModel.showingDetailsForNode) { node in
@@ -202,13 +202,13 @@ public struct TreeView_macOS: View {
             }
             .task {
                 viewModel.setDataManager(dataManager)
-                await viewModel.loadAllNodes()
+                await viewModel.initialLoad()
 
                 // Only set initial selection if not in tabbed view and no focus/selection exists
                 if !isInTabbedView && viewModel.focusedNodeId == nil && viewModel.selectedNodeId == nil {
                     if let firstRoot = viewModel.getRootNodes().first {
                         logger.log("🎯 Setting initial selection to first root: \(firstRoot.id)", category: "TreeView")
-                        viewModel.selectedNodeId = firstRoot.id
+                        viewModel.setSelectedNode(firstRoot.id)
                     }
                 } else {
                     logger.log("⏭️ Skipping initial selection (isInTabbedView: \(isInTabbedView), focusedNodeId: \(viewModel.focusedNodeId ?? "nil"), selectedNodeId: \(viewModel.selectedNodeId ?? "nil"))", category: "TreeView")
@@ -254,13 +254,13 @@ public struct TreeView_macOS: View {
     }
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command) {
-            switch event.keyCode {
-            case 8: // C key - Copy node names
-                logger.log("⌨️ Cmd+C pressed - copy node names to clipboard", category: "TreeView")
-                copyNodeNamesToClipboard()
-                return true
+        // Delegate to ViewModel for centralized handling
+        return viewModel.handleKeyPress(keyCode: event.keyCode, modifiers: event.modifierFlags)
+    }
 
+    // OLD handleKeyEvent code removed - now handled by ViewModel.handleKeyPress()
+
+    /*  REMOVED CODE - kept for reference only
             case 2: // D key - Details
                 if event.modifierFlags.contains(.shift) {
                     logger.log("⌨️ Cmd+Shift+D pressed - delete node", category: "TreeView")
@@ -400,7 +400,10 @@ public struct TreeView_macOS: View {
             return false
         }
     }
+    */  // End of removed code
 
+    // REMOVED: Local navigation methods - now handled by viewModel.navigateToNode()
+    /*
     private func moveToNextSibling() {
         logger.log("📞 moveToNextSibling called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId else {
@@ -599,6 +602,7 @@ public struct TreeView_macOS: View {
             return roots
         }
     }
+    */  // End of removed navigation methods
 
     private func isNodeInFocusedBranch(_ nodeId: String) -> Bool {
         guard let focusedId = viewModel.focusedNodeId else {
@@ -635,13 +639,12 @@ public struct TreeView_macOS: View {
 
 
     private func handleQuickAddToDefaultFolder() async {
-        do {
-            // Get the default folder ID
-            guard let defaultNodeId = try await APIClient.shared.getDefaultNode() else {
-                logger.log("⚠️ No default folder set", level: .warning, category: "TreeView")
-                // Could show an alert here if desired
-                return
-            }
+        // Get the default folder ID
+        guard let defaultNodeId = await dataManager.getDefaultFolder() else {
+            logger.log("⚠️ No default folder set", level: .warning, category: "TreeView")
+            // Could show an alert here if desired
+            return
+        }
 
             // Find the default folder in the current nodes
             guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
@@ -658,9 +661,6 @@ public struct TreeView_macOS: View {
 
             // Show the create dialog
             viewModel.showingCreateDialog = true
-        } catch {
-            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "TreeView")
-        }
     }
 
     private func copyNodeNamesToClipboard() {
@@ -707,31 +707,19 @@ public struct TreeView_macOS: View {
             logger.log("   Auto-refresh: \(smartFolderData.autoRefresh ?? true)", category: "TreeView")
         }
 
-        do {
-            logger.log("🌐 Making API call to execute smart folder...", category: "TreeView")
-            let api = APIClient.shared
-            let resultNodes = try await api.executeSmartFolderRule(smartFolderId: node.id)
+        logger.log("🌐 Executing smart folder via DataManager...", category: "TreeView")
+        let resultNodes = await dataManager.executeSmartFolder(nodeId: node.id)
 
-            logger.log("✅ Smart folder executed successfully, returned \(resultNodes.count) nodes", category: "TreeView")
-
-            for (index, node) in resultNodes.prefix(3).enumerated() {
-                logger.log("   Result \(index + 1): \(node.title) (type: \(node.nodeType), id: \(node.id))", category: "TreeView")
-            }
-            if resultNodes.count > 3 {
-                logger.log("   ... and \(resultNodes.count - 3) more nodes", category: "TreeView")
-            }
-
-            logger.log("📝 Updating children for smart folder", category: "TreeView")
+        if !resultNodes.isEmpty {
+            logger.log("📝 Updating children for smart folder with \(resultNodes.count) nodes", category: "TreeView")
             await MainActor.run {
                 viewModel.nodeChildren[node.id] = resultNodes
                 logger.log("✅ UI updated with smart folder results", category: "TreeView")
             }
 
             logger.log("✅ Smart folder execution complete", category: "TreeView")
-        } catch {
-            logger.log("❌ Failed to execute smart folder rule: \(error)", level: .error, category: "TreeView")
-            logger.log("   Error type: \(type(of: error))", level: .error, category: "TreeView")
-            logger.log("   Error description: \(error.localizedDescription)", level: .error, category: "TreeView")
+        } else {
+            logger.log("⚠️ Smart folder returned no results", category: "TreeView")
         }
     }
 }
@@ -831,10 +819,12 @@ private struct TreeContent: View {
                 lineSpacing: lineSpacing,
                 onDelete: viewModel.deleteNode,
                 onToggleTaskStatus: viewModel.toggleTaskStatus,
-                onRefresh: { await viewModel.loadAllNodes() },
+                onRefresh: { await viewModel.refreshNodes() },
                 onUpdateNodeTitle: viewModel.updateNodeTitle,
                 onUpdateSingleNode: viewModel.updateSingleNode,
-                onNodeDrop: viewModel.performReorder
+                onNodeDrop: viewModel.performReorder,
+                onExecuteSmartFolder: viewModel.executeSmartFolder,
+                onInstantiateTemplate: viewModel.instantiateTemplate
             )
         } else {
             ForEach(viewModel.getRootNodes()) { node in
@@ -854,10 +844,12 @@ private struct TreeContent: View {
                     lineSpacing: lineSpacing,
                     onDelete: viewModel.deleteNode,
                     onToggleTaskStatus: viewModel.toggleTaskStatus,
-                    onRefresh: { await viewModel.loadAllNodes() },
+                    onRefresh: { await viewModel.refreshNodes() },
                     onUpdateNodeTitle: viewModel.updateNodeTitle,
                     onUpdateSingleNode: viewModel.updateSingleNode,
-                    onNodeDrop: viewModel.performReorder
+                    onNodeDrop: viewModel.performReorder,
+                    onExecuteSmartFolder: viewModel.executeSmartFolder,
+                    onInstantiateTemplate: viewModel.instantiateTemplate
                 )
             }
         }

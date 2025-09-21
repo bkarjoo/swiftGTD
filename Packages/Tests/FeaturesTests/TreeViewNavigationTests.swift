@@ -30,8 +30,8 @@ class TreeViewNavigationTests: XCTestCase {
         let rootNode2 = createMockNode(id: "2", title: "Root 2", parentId: nil, sortOrder: 0)
         let childNode = createMockNode(id: "3", title: "Child", parentId: "1", sortOrder: 0)
 
-        mockDataManager.nodes = [rootNode1, rootNode2, childNode]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [rootNode1, rootNode2, childNode]
+        await viewModel.initialLoad()
 
         // When
         let roots = viewModel.getRootNodes()
@@ -48,8 +48,8 @@ class TreeViewNavigationTests: XCTestCase {
         let node2 = createMockNode(id: "2", title: "B", parentId: nil, sortOrder: 5)
         let node3 = createMockNode(id: "3", title: "C", parentId: nil, sortOrder: 15)
 
-        mockDataManager.nodes = [node1, node2, node3]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [node1, node2, node3]
+        await viewModel.initialLoad()
 
         // When
         let roots = viewModel.getRootNodes()
@@ -69,8 +69,8 @@ class TreeViewNavigationTests: XCTestCase {
         let child2 = createMockNode(id: "3", title: "Child 2", parentId: "1", sortOrder: 0)
         let grandchild = createMockNode(id: "4", title: "Grandchild", parentId: "2")
 
-        mockDataManager.nodes = [parent, child1, child2, grandchild]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [parent, child1, child2, grandchild]
+        await viewModel.initialLoad()
 
         // When
         let children = viewModel.getChildren(of: "1")
@@ -89,8 +89,8 @@ class TreeViewNavigationTests: XCTestCase {
         let child2 = createMockNode(id: "3", title: "A", parentId: "1", sortOrder: 10)
         let child3 = createMockNode(id: "4", title: "C", parentId: "1", sortOrder: 30)
 
-        mockDataManager.nodes = [parent, child1, child2, child3]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [parent, child1, child2, child3]
+        await viewModel.initialLoad()
 
         // When
         let children = viewModel.getChildren(of: "1")
@@ -105,8 +105,8 @@ class TreeViewNavigationTests: XCTestCase {
     func testGetChildren_ReturnsEmptyForNodeWithoutChildren() async {
         // Given
         let node = createMockNode(id: "1", title: "Lonely", parentId: nil)
-        mockDataManager.nodes = [node]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [node]
+        await viewModel.initialLoad()
 
         // When
         let children = viewModel.getChildren(of: "1")
@@ -124,8 +124,8 @@ class TreeViewNavigationTests: XCTestCase {
         let child = createMockNode(id: "3", title: "Child", parentId: "2")
         let grandchild = createMockNode(id: "4", title: "Grandchild", parentId: "3")
 
-        mockDataManager.nodes = [root, parent, child, grandchild]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [root, parent, child, grandchild]
+        await viewModel.initialLoad()
 
         // When
         let chain = viewModel.getParentChain(for: grandchild)
@@ -140,8 +140,8 @@ class TreeViewNavigationTests: XCTestCase {
     func testGetParentChain_ReturnsEmptyForRootNode() async {
         // Given
         let root = createMockNode(id: "1", title: "Root", parentId: nil)
-        mockDataManager.nodes = [root]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [root]
+        await viewModel.initialLoad()
 
         // When
         let chain = viewModel.getParentChain(for: root)
@@ -156,13 +156,13 @@ class TreeViewNavigationTests: XCTestCase {
         // Given
         let node1 = createMockNode(id: "1", title: "Node 1", parentId: nil)
         let node2 = createMockNode(id: "2", title: "Node 2", parentId: nil)
-        mockDataManager.nodes = [node1, node2]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [node1, node2]
+        await viewModel.initialLoad()
 
         // When
         viewModel.selectedNodeId = "1"
-        mockDataManager.nodes = [node1, node2] // Simulate refresh
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [node1, node2] // Simulate refresh
+        await viewModel.initialLoad()
 
         // Then
         XCTAssertEqual(viewModel.selectedNodeId, "1")
@@ -174,13 +174,13 @@ class TreeViewNavigationTests: XCTestCase {
         // Given
         let parent = createMockNode(id: "1", title: "Parent", parentId: nil)
         let child = createMockNode(id: "2", title: "Child", parentId: "1")
-        mockDataManager.nodes = [parent, child]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [parent, child]
+        await viewModel.initialLoad()
 
         // When
         viewModel.expandedNodes.insert("1")
-        mockDataManager.nodes = [parent, child] // Simulate refresh
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [parent, child] // Simulate refresh
+        await viewModel.initialLoad()
 
         // Then
         XCTAssertTrue(viewModel.expandedNodes.contains("1"))
@@ -195,8 +195,8 @@ class TreeViewNavigationTests: XCTestCase {
         let child = createMockNode(id: "3", title: "Child", parentId: "2")
         let sibling = createMockNode(id: "4", title: "Sibling", parentId: "1")
 
-        mockDataManager.nodes = [root, focused, child, sibling]
-        await viewModel.loadAllNodes()
+        mockDataManager.mockNodes = [root, focused, child, sibling]
+        await viewModel.initialLoad()
 
         // When
         viewModel.focusedNodeId = "2"

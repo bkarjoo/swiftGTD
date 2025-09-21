@@ -2,15 +2,20 @@ import SwiftUI
 import Core
 import Models
 import Services
-import Networking
 import Combine
+#if os(macOS)
+import AppKit
+#endif
 
 private let logger = Logger.shared
 
 @MainActor
 public class TreeViewModel: ObservableObject, Identifiable {
     public let id = UUID()
-    @Published var allNodes: [Node] = []
+    // allNodes is now a computed property from DataManager
+    var allNodes: [Node] {
+        dataManager?.nodes ?? []
+    }
     @Published var nodeChildren: [String: [Node]] = [:]
     @Published var isLoading = false
     @Published var expandedNodes = Set<String>()
@@ -97,13 +102,14 @@ public class TreeViewModel: ObservableObject, Identifiable {
     
     private func updateNodesFromDataManager(_ nodes: [Node]) {
         logger.log("📞 updateNodesFromDataManager called with \(nodes.count) nodes", category: "TreeViewModel")
-        self.allNodes = nodes
+        // No need to set allNodes anymore, it's computed from dataManager
 
         // Preserve smart folder results before rebuilding
         var smartFolderResults: [String: [Node]] = [:]
         for (nodeId, children) in nodeChildren {
             // Check if this is a smart folder with results
-            if let node = allNodes.first(where: { $0.id == nodeId }),
+            // Use the nodes parameter instead of allNodes to ensure we have the data
+            if let node = nodes.first(where: { $0.id == nodeId }),
                node.nodeType == "smart_folder",
                !children.isEmpty {
                 smartFolderResults[nodeId] = children
@@ -136,46 +142,68 @@ public class TreeViewModel: ObservableObject, Identifiable {
         logger.log("✅ Built parent-child relationships for \(childrenMap.count) parents", category: "TreeViewModel")
     }
     
-    func loadAllNodes() async {
+    /// Initial load of nodes - only runs once per view lifecycle
+    func initialLoad() async {
         guard !didLoad else {
-            logger.log("⏩ Skipping loadAllNodes - already loaded", category: "TreeViewModel")
+            logger.log("⏩ Skipping initialLoad - already loaded", category: "TreeViewModel")
             return
         }
 
-        logger.log("🔵 TreeViewModel.loadAllNodes() called", category: "TreeViewModel")
+        logger.log("🔵 TreeViewModel.initialLoad() called - first time load", category: "TreeViewModel")
         isLoading = true
         didLoad = true
 
         await performLoad()
     }
 
+    /// Force a full refresh of all nodes from the server
     func refreshNodes() async {
-        logger.log("🔄 TreeViewModel.refreshNodes() called - forcing refresh", category: "TreeViewModel")
+        logger.log("🔄 TreeViewModel.refreshNodes() called - forcing full refresh", category: "TreeViewModel")
         isLoading = true
-        await performLoad()
+
+        // Always use DataManager for refresh to ensure consistency
+        if let dataManager = dataManager {
+            await dataManager.syncAllData()
+            // DataManager will update its nodes property which we're subscribed to
+            isLoading = false
+        } else {
+            await performLoad()
+        }
+    }
+
+    /// Refresh a specific node and its children
+    func refreshNode(nodeId: String) async {
+        logger.log("🔄 Refreshing single node: \(nodeId)", category: "TreeViewModel")
+
+        guard let dataManager = dataManager else {
+            logger.error("❌ No DataManager available for single node refresh", category: "TreeViewModel")
+            return
+        }
+
+        // Use DataManager to refresh the single node
+        await dataManager.refreshNode(nodeId)
     }
 
     private func performLoad() async {
         do {
             // Use DataManager if available, otherwise fall back to API directly
             let nodes: [Node]
-            if let dataManager = dataManager {
-                logger.log("✅ DataManager found, calling syncAllData()", category: "TreeViewModel")
-                // Use syncAllData to load from cache when offline
-                await dataManager.syncAllData()
-                nodes = dataManager.nodes
-                logger.log("📊 Received \(nodes.count) nodes from DataManager", category: "TreeViewModel")
-            } else {
-                logger.log("⚠️ No DataManager, falling back to direct API call", category: "TreeViewModel")
-                nodes = try await APIClient.shared.getNodes()
-                logger.log("📊 Received \(nodes.count) nodes from API directly", category: "TreeViewModel")
+            guard let dataManager = dataManager else {
+                logger.error("❌ No DataManager available - cannot load nodes", category: "TreeViewModel")
+                return // Early return, no error throw needed as this is caught in the do-catch
             }
+
+            logger.log("✅ DataManager found, calling syncAllData()", category: "TreeViewModel")
+            // Use syncAllData to load from cache when offline
+            await dataManager.syncAllData()
+            nodes = dataManager.nodes
+            logger.log("📊 Received \(nodes.count) nodes from DataManager", category: "TreeViewModel")
 
             await MainActor.run {
                 logger.log("🔄 Updating UI with \(nodes.count) nodes", category: "TreeViewModel")
                 self.updateNodesFromDataManager(nodes)
                 self.isLoading = false
-                logger.log("✅ TreeViewModel.loadAllNodes() completed", category: "TreeViewModel")
+                logger.log("✅ TreeViewModel.performLoad() completed", category: "TreeViewModel")
             }
         } catch {
             logger.error("❌ Error loading nodes: \(error)", category: "TreeViewModel")
@@ -186,38 +214,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
 
     func updateSingleNode(nodeId: String) async {
-        logger.log("📡 Updating single node: \(nodeId)", category: "TreeViewModel")
-
-        do {
-            // Load the updated node from API to get fresh tags
-            let updatedNode = try await APIClient.shared.getNode(id: nodeId)
-
-            await MainActor.run {
-                // Find and update the node in our arrays
-                if let index = self.allNodes.firstIndex(where: { $0.id == nodeId }) {
-                    self.allNodes[index] = updatedNode
-                    logger.log("✅ Updated node in allNodes array", category: "TreeViewModel")
-                }
-
-                // Update in parent's children list if applicable
-                if let parentId = updatedNode.parentId,
-                   var siblings = self.nodeChildren[parentId],
-                   let childIndex = siblings.firstIndex(where: { $0.id == nodeId }) {
-                    siblings[childIndex] = updatedNode
-                    self.nodeChildren[parentId] = siblings
-                    logger.log("✅ Updated node in parent's children list", category: "TreeViewModel")
-                }
-
-                // Update in DataManager if available
-                if let dataManager = self.dataManager,
-                   let dmIndex = dataManager.nodes.firstIndex(where: { $0.id == nodeId }) {
-                    dataManager.nodes[dmIndex] = updatedNode
-                    logger.log("✅ Updated node in DataManager", category: "TreeViewModel")
-                }
-            }
-        } catch {
-            logger.error("❌ Failed to update single node: \(error)", category: "TreeViewModel")
-        }
+        // Delegate to refreshNode for consistency
+        await refreshNode(nodeId: nodeId)
     }
     
     func deleteNode(_ node: Node) {
@@ -336,12 +334,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        guard let nodeIndex = allNodes.firstIndex(where: { $0.id == nodeId }) else {
+        guard let node = allNodes.first(where: { $0.id == nodeId }) else {
             logger.log("❌ Node not found: \(nodeId)", category: "TreeViewModel")
             return
         }
 
-        let node = allNodes[nodeIndex]
         logger.log("📝 Updating node title - id: \(nodeId), newTitle: \(newTitle)", category: "TreeViewModel")
 
         // Create update object with new title
@@ -353,30 +350,14 @@ public class TreeViewModel: ObservableObject, Identifiable {
         )
 
         // Update via DataManager (handles both online and offline scenarios)
+        // DataManager will update its nodes array, which triggers our subscription
+        // and automatically updates our view through updateNodesFromDataManager
         if let updatedNode = await dataManager.updateNode(nodeId, update: update) {
             logger.log("✅ Node title updated successfully: \(updatedNode.title)", category: "TreeViewModel")
-
-            // Update the local node array directly instead of reloading everything
-            // Note: DataManager already updates its nodes array, which triggers our subscription
-            // So this local update might be redundant, but ensures immediate UI feedback
-            await MainActor.run {
-                self.allNodes[nodeIndex] = updatedNode
-
-                // If the node is in a parent's children list, update that too
-                if let parentId = updatedNode.parentId {
-                    if var siblings = self.nodeChildren[parentId] {
-                        if let childIndex = siblings.firstIndex(where: { $0.id == nodeId }) {
-                            siblings[childIndex] = updatedNode
-                            self.nodeChildren[parentId] = siblings
-                        }
-                    }
-                }
-            }
+            // The subscription to DataManager.nodes will handle all UI updates
         } else {
             logger.log("⚠️ Node update returned nil - might be offline and queued", category: "TreeViewModel")
-            // In offline mode, the update is queued but we don't get an updated node back
-            // For now, we could show a temporary local update for better UX
-            // Offline feedback is handled by DataManager's queue
+            // In offline mode, the update is queued and DataManager handles local updates
         }
     }
 
@@ -494,33 +475,471 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
     }
 
+    // MARK: - UI Intent Methods
+
+    /// Centralized keyboard event handling
+    func handleKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+        logger.log("⌨️ handleKeyPress - keyCode: \(keyCode), modifiers: \(modifiers)", category: "TreeViewModel")
+
+        // Handle Command key combinations
+        if modifiers.contains(.command) {
+            switch keyCode {
+            case 8: // C - Copy node names
+                if showingNoteEditorForNode != nil {
+                    return false  // Let note editor handle it
+                }
+                performAction(.copyNodeNames)
+                return true
+
+            case 2: // D - Details or Delete
+                if modifiers.contains(.shift) {
+                    performAction(.deleteNode)
+                } else {
+                    performAction(.showDetails)
+                }
+                return true
+
+            case 3: // F - Focus
+                if modifiers.contains(.shift) {
+                    performAction(.focusNode)
+                    return true
+                }
+                break
+
+            case 17: // T - Tags
+                performAction(.showTags)
+                return true
+
+            case 14: // E - Execute smart folder
+                performAction(.executeSmartFolder)
+                return true
+
+            case 32: // U - Use template
+                performAction(.useTemplate)
+                return true
+
+            case 12: // Q - Quick task
+                Task { await performAction(.createQuickTask) }
+                return true
+
+            default:
+                break
+            }
+        }
+
+        // Handle non-command shortcuts
+        switch keyCode {
+        case 3: // F - unfocus (when no command modifier)
+            if !modifiers.contains(.command) {
+                setFocusedNode(nil)
+                return true
+            }
+
+        case 17: // T - Create task
+            if !modifiers.contains(.command) {
+                createNodeType = "task"
+                createNodeTitle = ""
+                createNodeParentId = nil
+                showingCreateDialog = true
+                return true
+            }
+
+        case 45: // N - Create note
+            createNodeType = "note"
+            createNodeTitle = ""
+            createNodeParentId = nil
+            showingCreateDialog = true
+            return true
+
+        case 47: // Period/Dot - Toggle task
+            performAction(.toggleTask)
+            return true
+
+        case 4: // H - Help
+            performAction(.showHelp)
+            return true
+
+        case 12: // Q - Quick add to default folder
+            Task {
+                await createQuickTaskInDefaultFolder()
+            }
+            return true
+
+        case 36: // Enter - Edit or activate
+            performAction(.activateNode)
+            return true
+
+        case 49: // Space - Edit node
+            isEditing = true
+            return true
+
+        case 126: // Arrow Up
+            navigateToNode(direction: .up)
+            return true
+
+        case 125: // Arrow Down
+            navigateToNode(direction: .down)
+            return true
+
+        case 123: // Arrow Left
+            navigateToNode(direction: .left)
+            return true
+
+        case 124: // Arrow Right
+            navigateToNode(direction: .right)
+            return true
+
+        default:
+            break
+        }
+
+        return false
+    }
+
+    /// Node action types
+    enum NodeAction {
+        case copyNodeNames
+        case deleteNode
+        case showDetails
+        case focusNode
+        case showTags
+        case executeSmartFolder
+        case useTemplate
+        case createQuickTask
+        case toggleTask
+        case showHelp
+        case activateNode
+        case expandNode
+        case collapseNode
+    }
+
+    /// Perform a node action
+    func performAction(_ action: NodeAction, nodeId: String? = nil) {
+        let targetNodeId = nodeId ?? selectedNodeId
+        guard let targetId = targetNodeId else {
+            logger.log("⚠️ No node selected for action: \(action)", category: "TreeViewModel")
+            return
+        }
+
+        guard let node = allNodes.first(where: { $0.id == targetId }) else {
+            logger.log("⚠️ Node not found: \(targetId)", category: "TreeViewModel")
+            return
+        }
+
+        logger.log("🎯 Performing action \(action) on node: \(node.title)", category: "TreeViewModel")
+
+        switch action {
+        case .copyNodeNames:
+            copyNodeNamesToClipboard()
+
+        case .deleteNode:
+            deleteNode(node)
+
+        case .showDetails:
+            showingDetailsForNode = node
+
+        case .focusNode:
+            if node.nodeType == "smart_folder" {
+                setFocusedNode(node.id)
+                Task { await executeSmartFolder(node) }
+            } else if node.nodeType != "note" {
+                setFocusedNode(node.id)
+            }
+
+        case .showTags:
+            if node.nodeType != "smart_folder" {
+                showingTagPickerForNode = node
+            }
+
+        case .executeSmartFolder:
+            if node.nodeType == "smart_folder" {
+                Task { await executeSmartFolder(node) }
+            }
+
+        case .useTemplate:
+            if node.nodeType == "template" {
+                Task { await instantiateTemplate(node) }
+            }
+
+        case .createQuickTask:
+            // This doesn't need a selected node
+            Task { await createQuickTaskInDefaultFolder() }
+
+        case .toggleTask:
+            if node.nodeType == "task" {
+                toggleTaskStatus(node)
+            }
+
+        case .showHelp:
+            showingHelpWindow = true
+
+        case .activateNode:
+            if node.nodeType == "note" {
+                showingNoteEditorForNode = node
+            } else if !getChildren(of: node.id).isEmpty || node.nodeType == "smart_folder" {
+                toggleExpansion(for: node.id)
+            }
+
+        case .expandNode:
+            expandedNodes.insert(node.id)
+
+        case .collapseNode:
+            expandedNodes.remove(node.id)
+        }
+    }
+
+    /// Navigation directions
+    enum NavigationDirection {
+        case up, down, left, right
+    }
+
+    /// Navigate to adjacent node
+    func navigateToNode(direction: NavigationDirection) {
+        guard let currentId = selectedNodeId else {
+            // Select first root node if nothing selected
+            if direction == .down, let firstNode = getRootNodes().first {
+                setSelectedNode(firstNode.id)
+            }
+            return
+        }
+
+        logger.log("🔄 Navigating \(direction) from node: \(currentId)", category: "TreeViewModel")
+
+        switch direction {
+        case .up:
+            navigateUp(from: currentId)
+        case .down:
+            navigateDown(from: currentId)
+        case .left:
+            navigateLeft(from: currentId)
+        case .right:
+            navigateRight(from: currentId)
+        }
+    }
+
+    private func navigateUp(from nodeId: String) {
+        // Get visible nodes in tree order
+        let visibleNodes = getVisibleNodes()
+        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }),
+              currentIndex > 0 else { return }
+
+        setSelectedNode(visibleNodes[currentIndex - 1].id)
+    }
+
+    private func navigateDown(from nodeId: String) {
+        let visibleNodes = getVisibleNodes()
+        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }),
+              currentIndex < visibleNodes.count - 1 else { return }
+
+        setSelectedNode(visibleNodes[currentIndex + 1].id)
+    }
+
+    private func navigateLeft(from nodeId: String) {
+        guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
+
+        if expandedNodes.contains(nodeId) && !getChildren(of: nodeId).isEmpty {
+            // Collapse if expanded and has children
+            collapseNode(nodeId)
+        } else if let parentId = node.parentId {
+            // Navigate to parent
+            setSelectedNode(parentId)
+        }
+    }
+
+    private func navigateRight(from nodeId: String) {
+        guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
+        let children = getChildren(of: nodeId)
+
+        if !children.isEmpty {
+            if !expandedNodes.contains(nodeId) {
+                // Expand if collapsed and has children
+                expandNode(nodeId)
+            } else if let firstChild = children.first {
+                // Navigate to first child if already expanded
+                setSelectedNode(firstChild.id)
+            }
+        }
+    }
+
+    /// Get all visible nodes in tree order
+    private func getVisibleNodes() -> [Node] {
+        var visibleNodes: [Node] = []
+
+        func addVisibleNodes(nodes: [Node], level: Int = 0) {
+            for node in nodes {
+                visibleNodes.append(node)
+                if expandedNodes.contains(node.id) {
+                    let children = getChildren(of: node.id)
+                    addVisibleNodes(nodes: children, level: level + 1)
+                }
+            }
+        }
+
+        let rootNodes = focusedNodeId != nil
+            ? getChildren(of: focusedNodeId!)
+            : getRootNodes()
+        addVisibleNodes(nodes: rootNodes)
+
+        return visibleNodes
+    }
+
+    // MARK: - State Management Methods
+
+    /// Set the selected node
+    func setSelectedNode(_ nodeId: String?) {
+        selectedNodeId = nodeId
+        logger.log("✅ Selected node set to: \(nodeId ?? "nil")", category: "TreeViewModel")
+    }
+
+    /// Set the focused node
+    func setFocusedNode(_ nodeId: String?) {
+        focusedNodeId = nodeId
+        if let nodeId = nodeId {
+            expandedNodes.insert(nodeId) // Always expand when focusing
+        }
+        logger.log("🎯 Focused node set to: \(nodeId ?? "nil")", category: "TreeViewModel")
+        NotificationCenter.default.post(name: .focusChanged, object: nil)
+    }
+
+    /// Expand a node
+    func expandNode(_ nodeId: String) {
+        expandedNodes.insert(nodeId)
+        logger.log("📂 Expanded node: \(nodeId)", category: "TreeViewModel")
+    }
+
+    /// Collapse a node
+    func collapseNode(_ nodeId: String) {
+        expandedNodes.remove(nodeId)
+        logger.log("📁 Collapsed node: \(nodeId)", category: "TreeViewModel")
+    }
+
+    /// Toggle expansion state
+    func toggleExpansion(for nodeId: String) {
+        if expandedNodes.contains(nodeId) {
+            collapseNode(nodeId)
+        } else {
+            expandNode(nodeId)
+        }
+    }
+
+    /// Copy node hierarchy to clipboard
+    private func copyNodeNamesToClipboard() {
+        logger.log("📋 Copying node names to clipboard", category: "TreeViewModel")
+
+        var textToCopy = ""
+        func addNodeToText(_ node: Node, level: Int) {
+            let indent = String(repeating: "  ", count: level)
+            textToCopy += "\(indent)\(node.title)\n"
+
+            let children = getChildren(of: node.id)
+            for child in children {
+                addNodeToText(child, level: level + 1)
+            }
+        }
+
+        // Copy focused node or selected node hierarchy
+        if let focusedId = focusedNodeId,
+           let focusedNode = allNodes.first(where: { $0.id == focusedId }) {
+            addNodeToText(focusedNode, level: 0)
+        } else if let selectedId = selectedNodeId,
+                  let selectedNode = allNodes.first(where: { $0.id == selectedId }) {
+            addNodeToText(selectedNode, level: 0)
+        }
+
+        if !textToCopy.isEmpty {
+            #if os(macOS)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(textToCopy, forType: .string)
+            logger.log("✅ Copied node hierarchy to clipboard", category: "TreeViewModel")
+            #endif
+        }
+    }
+
+    // MARK: - Quick Task Creation
+
+    /// Create a quick task in the default folder
+    func createQuickTaskInDefaultFolder() async {
+        logger.log("📞 Creating quick task in default folder", category: "TreeViewModel")
+
+        guard let dataManager = dataManager else {
+            logger.error("❌ No DataManager available", category: "TreeViewModel")
+            return
+        }
+
+        // Get the default folder ID
+        guard let defaultNodeId = await dataManager.getDefaultFolder() else {
+            logger.log("⚠️ No default folder set", level: .warning, category: "TreeViewModel")
+            // Could show an alert here
+            return
+        }
+
+        // Create a quick task in the default folder
+        let taskTitle = "New Task \(Date().formatted(date: .abbreviated, time: .omitted))"
+        if let newNode = await dataManager.createNode(
+            title: taskTitle,
+            type: "task",
+            parentId: defaultNodeId
+        ) {
+            logger.log("✅ Created quick task: \(newNode.title) in default folder", category: "TreeViewModel")
+
+            // Expand the default folder to show the new task
+            expandedNodes.insert(defaultNodeId)
+
+            // Select the new task
+            selectedNodeId = newNode.id
+        }
+    }
+
+    // MARK: - Smart Folder Execution
+
+    func executeSmartFolder(_ node: Node) async {
+        logger.log("📞 Executing smart folder: \(node.title)", category: "TreeViewModel")
+
+        guard let dataManager = dataManager else {
+            logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
+            return
+        }
+
+        let resultNodes = await dataManager.executeSmartFolder(nodeId: node.id)
+
+        await MainActor.run {
+            if !resultNodes.isEmpty {
+                logger.log("📝 Updating children for smart folder with \(resultNodes.count) nodes", category: "TreeViewModel")
+                self.nodeChildren[node.id] = resultNodes
+                // Expand the smart folder to show results
+                self.expandedNodes.insert(node.id)
+                logger.log("✅ UI updated with smart folder results", category: "TreeViewModel")
+            } else {
+                logger.log("⚠️ Smart folder returned no results", category: "TreeViewModel")
+                // Clear any previous results
+                self.nodeChildren[node.id] = []
+                // Keep it expanded to show "no results" state
+                self.expandedNodes.insert(node.id)
+            }
+        }
+    }
+
     // MARK: - Template Instantiation
 
     func instantiateTemplate(_ template: Node) async {
         logger.log("📞 Instantiating template: \(template.title)", category: "TreeViewModel")
 
-        do {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MMM d"
-            let dateString = dateFormatter.string(from: Date())
-            let name = "\(template.title) - \(dateString)"
+        guard let dataManager = dataManager else {
+            logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
+            return
+        }
 
-            // Use the template's target node if it has one
-            let targetNodeId = template.templateData?.targetNodeId
+        // Use the template's target node if it has one
+        let targetNodeId = template.templateData?.targetNodeId
 
-            let api = APIClient.shared
-            let newNode = try await api.instantiateTemplate(
-                templateId: template.id,
-                name: name,
-                parentId: targetNodeId  // Pass the target node to the API
-            )
-
+        // Use DataManager to instantiate the template
+        if let newNode = await dataManager.instantiateTemplate(
+            templateId: template.id,
+            parentId: targetNodeId  // Pass the target node to DataManager
+        ) {
             logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeViewModel")
 
-            // Do a full tree refresh to capture everything
-            await refreshNodes()
-
-            // After refresh, expand target node and focus the new node
+            // After refresh (done by DataManager), expand target node and focus the new node
             await MainActor.run {
                 // Expand the target node if it exists
                 if let targetId = targetNodeId {
@@ -531,8 +950,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 self.selectedNodeId = newNode.id
                 self.focusedNodeId = newNode.id
             }
-        } catch {
-            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "TreeViewModel")
+        } else {
+            logger.log("❌ Failed to instantiate template", level: .error, category: "TreeViewModel")
         }
     }
 

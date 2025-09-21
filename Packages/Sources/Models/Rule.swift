@@ -47,4 +47,9 @@ public struct Rule: Codable, Identifiable {
 public struct RuleListResponse: Codable {
     public let rules: [Rule]
     public let total: Int
+
+    public init(rules: [Rule], total: Int) {
+        self.rules = rules
+        self.total = total
+    }
 }

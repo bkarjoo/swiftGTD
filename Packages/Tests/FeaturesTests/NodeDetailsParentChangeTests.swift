@@ -91,7 +91,7 @@ class NodeDetailsParentChangeTests: XCTestCase {
 
     func testParentChange_MovesSelectionToOriginalParent() async {
         // Given
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         await detailsViewModel.loadNode(nodeId: "child-1")
 
         // Select the child node
@@ -122,7 +122,7 @@ class NodeDetailsParentChangeTests: XCTestCase {
         )
 
         mockDataManager.nodes.append(rootNode)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         await detailsViewModel.loadNode(nodeId: "movable-root")
 
         treeViewModel.selectedNodeId = "movable-root"
@@ -193,7 +193,7 @@ class NodeDetailsParentChangeTests: XCTestCase {
         )
 
         mockDataManager.nodes.append(smartFolder)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
 
         // When
         await detailsViewModel.loadNode(nodeId: "child-1")
@@ -221,7 +221,7 @@ class NodeDetailsParentChangeTests: XCTestCase {
         )
 
         mockDataManager.nodes.append(note)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
 
         // When
         await detailsViewModel.loadNode(nodeId: "child-1")
@@ -254,7 +254,7 @@ class NodeDetailsParentChangeTests: XCTestCase {
         )
 
         mockDataManager.nodes.append(grandchild)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
 
         // When - Try to edit root-1
         await detailsViewModel.loadNode(nodeId: "root-1")

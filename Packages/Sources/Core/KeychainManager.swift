@@ -7,13 +7,30 @@ public class KeychainManager {
 
     private let serviceName = "com.swiftgtd.app"
     private let accountName = "authToken"
+    private let accessGroup: String? = nil
+
+    // Store token in memory for unsigned builds
+    private var inMemoryToken: String?
+    private let useKeychain: Bool
 
     private init() {
-        logger.log("🔐 Initializing KeychainManager", category: "Keychain")
+        // Check if running unsigned build by checking bundle identifier
+        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        // Don't use keychain if bundle ID contains "local" or if it's the default com.swiftgtd.app (unsigned)
+        self.useKeychain = false // Always disable keychain for unsigned builds
+
+        logger.log("🔐 Initializing KeychainManager (useKeychain: \(useKeychain))", category: "Keychain")
     }
 
     public func saveToken(_ token: String) -> Bool {
-        logger.log("🔐 Saving token to Keychain", category: "Keychain")
+        logger.log("🔐 Saving token (useKeychain: \(useKeychain))", category: "Keychain")
+
+        // For unsigned builds, just store in memory
+        if !useKeychain {
+            inMemoryToken = token
+            logger.log("✅ Token saved to memory", category: "Keychain")
+            return true
+        }
 
         // Convert token to data
         guard let data = token.data(using: .utf8) else {
@@ -25,13 +42,18 @@ public class KeychainManager {
         deleteToken()
 
         // Create the keychain item
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: accountName,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+            kSecAttrSynchronizable as String: false
         ]
+
+        if let accessGroup = accessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
 
         let status = SecItemAdd(query as CFDictionary, nil)
 
@@ -45,15 +67,26 @@ public class KeychainManager {
     }
 
     public func getToken() -> String? {
-        logger.log("🔐 Retrieving token from Keychain", category: "Keychain")
+        logger.log("🔐 Retrieving token (useKeychain: \(useKeychain))", category: "Keychain")
 
-        let query: [String: Any] = [
+        // For unsigned builds, return from memory
+        if !useKeychain {
+            logger.log("✅ Token retrieved from memory", category: "Keychain")
+            return inMemoryToken
+        }
+
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: accountName,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrSynchronizable as String: false
         ]
+
+        if let accessGroup = accessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -73,7 +106,14 @@ public class KeychainManager {
     }
 
     public func deleteToken() -> Bool {
-        logger.log("🔐 Deleting token from Keychain", category: "Keychain")
+        logger.log("🔐 Deleting token (useKeychain: \(useKeychain))", category: "Keychain")
+
+        // For unsigned builds, just clear memory
+        if !useKeychain {
+            inMemoryToken = nil
+            logger.log("✅ Token deleted from memory", category: "Keychain")
+            return true
+        }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

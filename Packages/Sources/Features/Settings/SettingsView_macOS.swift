@@ -8,6 +8,7 @@ import Models
 public struct SettingsView_macOS: View {
     public init() {}
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var dataManager: DataManager
     @AppStorage("darkMode") private var darkMode = false
     @AppStorage("apiURL") private var apiURL = "http://localhost:8000"
     @AppStorage("treeFontSize") private var treeFontSize = 14
@@ -213,26 +214,23 @@ public struct SettingsView_macOS: View {
         isLoadingFolders = true
         defer { isLoadingFolders = false }
 
-        do {
-            // Load all nodes and filter for folders
-            let allNodes = try await APIClient.shared.getAllNodes()
-            availableFolders = allNodes.filter { $0.nodeType == "folder" }
-                .sorted { $0.title < $1.title }
+        // Load nodes from DataManager
+        await dataManager.syncAllData()
 
-            // Load current default node
-            if let defaultId = try await APIClient.shared.getDefaultNode() {
-                defaultNodeId = defaultId
-            }
-        } catch {
-            print("Failed to load folders or default node: \(error)")
+        // Filter for folders from DataManager's nodes
+        availableFolders = dataManager.nodes.filter { $0.nodeType == "folder" }
+            .sorted { $0.title < $1.title }
+
+        // Load current default node
+        if let defaultId = await dataManager.getDefaultFolder() {
+            defaultNodeId = defaultId
         }
     }
 
     private func saveDefaultNode(_ nodeId: String?) async {
-        do {
-            try await APIClient.shared.setDefaultNode(nodeId: nodeId)
-        } catch {
-            print("Failed to save default node: \(error)")
+        let success = await dataManager.setDefaultFolder(nodeId: nodeId)
+        if !success {
+            print("Failed to save default node")
         }
     }
 }

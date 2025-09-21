@@ -24,10 +24,10 @@ public struct TreeView_iOS: View {
                         focusedNode: viewModel.currentFocusedNode,
                         parentChain: viewModel.currentFocusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
                         onNodeTap: { nodeId in
-                            viewModel.focusedNodeId = nodeId
+                            viewModel.setFocusedNode(nodeId)
                         },
                         onExitFocus: {
-                            viewModel.focusedNodeId = nil
+                            viewModel.setFocusedNode(nil)
                         }
                     )
                 }
@@ -76,7 +76,7 @@ public struct TreeView_iOS: View {
                 logger.log("📞 Setting dataManager on viewModel (in task)", category: "TreeView")
                 viewModel.setDataManager(dataManager)
                 logger.log("✅ DataManager set, now loading nodes", category: "TreeView")
-                await viewModel.loadAllNodes()
+                await viewModel.initialLoad()
             }
             .onAppear {
                 // Also set in onAppear as a backup
@@ -170,10 +170,12 @@ private struct TreeContent: View {
                 lineSpacing: lineSpacing,
                 onDelete: viewModel.deleteNode,
                 onToggleTaskStatus: viewModel.toggleTaskStatus,
-                onRefresh: { await viewModel.loadAllNodes() },
+                onRefresh: { await viewModel.refreshNodes() },
                 onUpdateNodeTitle: viewModel.updateNodeTitle,
                 onUpdateSingleNode: viewModel.updateSingleNode,
-                onNodeDrop: viewModel.performReorder
+                onNodeDrop: viewModel.performReorder,
+                onExecuteSmartFolder: viewModel.executeSmartFolder,
+                onInstantiateTemplate: viewModel.instantiateTemplate
             )
         } else {
             // Normal mode - show root nodes
@@ -194,10 +196,12 @@ private struct TreeContent: View {
                     lineSpacing: lineSpacing,
                     onDelete: viewModel.deleteNode,
                     onToggleTaskStatus: viewModel.toggleTaskStatus,
-                    onRefresh: { await viewModel.loadAllNodes() },
+                    onRefresh: { await viewModel.refreshNodes() },
                     onUpdateNodeTitle: viewModel.updateNodeTitle,
                     onUpdateSingleNode: viewModel.updateSingleNode,
-                    onNodeDrop: viewModel.performReorder
+                    onNodeDrop: viewModel.performReorder,
+                    onExecuteSmartFolder: viewModel.executeSmartFolder,
+                    onInstantiateTemplate: viewModel.instantiateTemplate
                 )
             }
         }
@@ -218,7 +222,7 @@ private struct TreeToolbar: ToolbarContent {
                 // Refresh button
                 Button(action: {
                     Task {
-                        await viewModel.loadAllNodes()
+                        await viewModel.refreshNodes()
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")

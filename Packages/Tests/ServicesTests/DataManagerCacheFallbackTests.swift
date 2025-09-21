@@ -40,16 +40,16 @@ enum CacheError: Error {
 }
 
 /// Mock API that can simulate offline/empty responses
-class MockCacheFallbackAPIClient: APIClientProtocol {
+class MockCacheFallbackAPIClient: MockAPIClientBase {
     var serverNodes: [Node] = []
     var shouldReturnEmpty = false
     var isOffline = false
     var fetchCalled = false
 
     // MARK: - Auth
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
 
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -57,7 +57,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
     }
 
     // MARK: - Core Node Operations
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -65,7 +65,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return shouldReturnEmpty ? [] : serverNodes.filter { $0.parentId == parentId }
     }
 
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -73,7 +73,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return shouldReturnEmpty ? [] : serverNodes
     }
 
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -83,7 +83,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return node
     }
 
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -91,7 +91,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return node
     }
 
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -115,7 +115,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return updated
     }
 
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -123,9 +123,9 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
     }
 
     // MARK: - Other required methods
-    func getTags() async throws -> [Tag] { return [] }
+    override func getTags() async throws -> [Tag] { return [] }
 
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         if isOffline {
             throw APIError.httpError(-1009)
         }
@@ -135,7 +135,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         return node
     }
 
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -148,7 +148,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         ))
     }
 
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -162,7 +162,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         ))
     }
 
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -176,7 +176,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         ))
     }
 
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -189,7 +189,7 @@ class MockCacheFallbackAPIClient: APIClientProtocol {
         ))
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }

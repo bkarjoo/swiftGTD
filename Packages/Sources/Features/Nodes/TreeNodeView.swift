@@ -33,6 +33,8 @@ public struct TreeNodeView: View {
     let onUpdateNodeTitle: (String, String) async -> Void
     let onUpdateSingleNode: (String) async -> Void
     let onNodeDrop: ((Node, Node, DropPosition, String) async -> Void)?  // Pass nodes, position, and message
+    let onExecuteSmartFolder: ((Node) async -> Void)?  // Execute smart folder
+    let onInstantiateTemplate: ((Node) async -> Void)?  // Instantiate template
 
     @State private var showingDetailsForNode: Node?
     @State private var showingTagPickerForNode: Node?
@@ -218,7 +220,9 @@ public struct TreeNodeView: View {
                         onRefresh: onRefresh,
                         onUpdateNodeTitle: onUpdateNodeTitle,
                         onUpdateSingleNode: onUpdateSingleNode,
-                        onNodeDrop: onNodeDrop
+                        onNodeDrop: onNodeDrop,
+                        onExecuteSmartFolder: onExecuteSmartFolder,
+                        onInstantiateTemplate: onInstantiateTemplate
                     )
                 }
             }
@@ -464,82 +468,27 @@ public struct TreeNodeView: View {
 
     // MARK: - Smart Folder Execution
 
-    /// Executes the smart folder's rule by calling the API to get its contents.
-    /// Updates nodeChildren with the results and expands the smart folder to display them.
+    /// Executes the smart folder rule by updating nodeChildren with results
     private func executeSmartFolderRule() async {
-        // Log execution start with details
-        logger.log("📞 Executing smart folder rule for: \(node.title)", category: "TreeNodeView")
-        logger.log("   Smart folder ID: \(node.id)", category: "TreeNodeView")
-        logger.log("   Node type: \(node.nodeType)", category: "TreeNodeView")
+        logger.log("📞 executeSmartFolderRule called for: \(node.title)", category: "TreeNodeView")
 
-        // Log smart folder metadata if available
-        if let smartFolderData = node.smartFolderData {
-            logger.log("   Rule ID: \(smartFolderData.ruleId ?? "nil")", category: "TreeNodeView")
-            logger.log("   Auto-refresh: \(smartFolderData.autoRefresh ?? true)", category: "TreeNodeView")
-        }
+        // Expand the folder to show results
+        expandedNodes.insert(node.id)
 
-        do {
-            // Execute the smart folder rule via API
-            logger.log("🌐 Making API call to execute smart folder...", category: "TreeNodeView")
-            let api = APIClient.shared
-            let resultNodes = try await api.executeSmartFolderRule(smartFolderId: node.id)
-
-            logger.log("✅ Smart folder executed successfully, returned \(resultNodes.count) nodes", category: "TreeNodeView")
-
-            // Log sample results for debugging
-            for (index, node) in resultNodes.prefix(3).enumerated() {
-                logger.log("   Result \(index + 1): \(node.title) (type: \(node.nodeType), id: \(node.id))", category: "TreeNodeView")
-            }
-            if resultNodes.count > 3 {
-                logger.log("   ... and \(resultNodes.count - 3) more nodes", category: "TreeNodeView")
-            }
-
-            // Update UI with smart folder contents
-            logger.log("📝 Updating nodeChildren for smart folder", category: "TreeNodeView")
-            await MainActor.run {
-                nodeChildren[node.id] = resultNodes
-                // Expand the smart folder to show results
-                expandedNodes.insert(node.id)
-                logger.log("✅ UI updated with smart folder results", category: "TreeNodeView")
-            }
-
-            logger.log("✅ Smart folder execution complete", category: "TreeNodeView")
-        } catch {
-            logger.log("❌ Failed to execute smart folder rule: \(error)", level: .error, category: "TreeNodeView")
-            logger.log("   Error type: \(type(of: error))", level: .error, category: "TreeNodeView")
-            logger.log("   Error description: \(error.localizedDescription)", level: .error, category: "TreeNodeView")
+        // Execute the smart folder
+        if node.nodeType == "smart_folder", let onExecuteSmartFolder = onExecuteSmartFolder {
+            await onExecuteSmartFolder(node)
         }
     }
 
-    // MARK: - Template Operations
-
-    /// Instantiates a template node, creating a new instance with all its contents.
-    /// - Parameter template: The template node to instantiate
+    /// Instantiates a template by delegating to parent
     private func instantiateTemplate(_ template: Node) async {
-        logger.log("📞 Instantiating template: \(template.title)", category: "TreeNodeView")
-        
-        do {
-            // Generate a name for the instantiated copy
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MMM d"
-            let dateString = dateFormatter.string(from: Date())
-            let name = "\(template.title) - \(dateString)"
-            
-            // Call the API to instantiate the template
-            // parentId will be nil, so it uses the template's target_node_id
-            let api = APIClient.shared
-            let newNode = try await api.instantiateTemplate(
-                templateId: template.id,
-                name: name,
-                parentId: nil
-            )
-            
-            logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeNodeView")
-            
-            // Trigger a refresh by calling the parent view's refresh callback
-            await onRefresh()
-        } catch {
-            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "TreeNodeView")
+        logger.log("📞 instantiateTemplate called for: \(template.title)", category: "TreeNodeView")
+
+        if let onInstantiateTemplate = onInstantiateTemplate {
+            await onInstantiateTemplate(template)
+        } else {
+            logger.log("⚠️ No onInstantiateTemplate handler provided", category: "TreeNodeView")
         }
     }
     
@@ -697,21 +646,25 @@ struct NodeDropDelegate: DropDelegate {
     let onDrop: (Node, Node, DropPosition) -> Bool
 
     func performDrop(info: DropInfo) -> Bool {
-        dropPosition.wrappedValue = .none
-
         guard let itemProvider = info.itemProviders(for: [UTType.data]).first else {
+            dropPosition.wrappedValue = .none
             return false
         }
 
         itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.data.identifier) { data, error in
             guard let data = data,
                   let draggedNode = try? JSONDecoder().decode(Node.self, from: data) else {
+                DispatchQueue.main.async {
+                    dropPosition.wrappedValue = .none
+                }
                 return
             }
 
             DispatchQueue.main.async {
                 let position = getDropPosition(info: info)
                 _ = onDrop(draggedNode, targetNode, position)
+                // Reset drop position after handling the drop
+                dropPosition.wrappedValue = .none
             }
         }
         return true

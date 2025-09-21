@@ -156,6 +156,11 @@
 			buildRules = (
 			);
 			dependencies = (
+				1E186FDB2E7F3BD0004B90E9 /* PBXTargetDependency */,
+				1E186FDD2E7F3BD0004B90E9 /* PBXTargetDependency */,
+				1E186FDF2E7F3BD0004B90E9 /* PBXTargetDependency */,
+				1E186FE12E7F3BD0004B90E9 /* PBXTargetDependency */,
+				1E186FE32E7F3BD0004B90E9 /* PBXTargetDependency */,
 			);
 			name = SwiftGTD;
 			packageProductDependencies = (
@@ -359,6 +364,26 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		1E186FDB2E7F3BD0004B90E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 1E186FDA2E7F3BD0004B90E9 /* Core */;
+		};
+		1E186FDD2E7F3BD0004B90E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 1E186FDC2E7F3BD0004B90E9 /* Features */;
+		};
+		1E186FDF2E7F3BD0004B90E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 1E186FDE2E7F3BD0004B90E9 /* Models */;
+		};
+		1E186FE12E7F3BD0004B90E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 1E186FE02E7F3BD0004B90E9 /* Networking */;
+		};
+		1E186FE32E7F3BD0004B90E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 1E186FE22E7F3BD0004B90E9 /* Services */;
+		};
 		1E7E56DE2E776DC40004D717 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1E7E56CE2E776DC30004D717 /* SwiftGTD-macOS */;
@@ -749,6 +774,31 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
 			productName = Models;
+		};
+		1E186FDA2E7F3BD0004B90E9 /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
+			productName = Core;
+		};
+		1E186FDC2E7F3BD0004B90E9 /* Features */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
+			productName = Features;
+		};
+		1E186FDE2E7F3BD0004B90E9 /* Models */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
+			productName = Models;
+		};
+		1E186FE02E7F3BD0004B90E9 /* Networking */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
+			productName = Networking;
+		};
+		1E186FE22E7F3BD0004B90E9 /* Services */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B87EB506F942031002310B /* XCLocalSwiftPackageReference "Packages" */;
+			productName = Services;
 		};
 		1E7E57012E776E170004D717 /* Core */ = {
 			isa = XCSwiftPackageProductDependency;

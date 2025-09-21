@@ -31,8 +31,8 @@ class TagManagementTests: XCTestCase {
             isList: false,
             childrenCount: 0,
             tags: [
-                Tag(id: "tag-1", name: "Important", color: "#FF0000"),
-                Tag(id: "tag-2", name: "Work", color: "#0000FF")
+                Tag(id: "tag-1", name: "Important", color: "#FF0000", description: nil, createdAt: nil),
+                Tag(id: "tag-2", name: "Work", color: "#0000FF", description: nil, createdAt: nil)
             ]
         )
 
@@ -70,9 +70,9 @@ class TagManagementTests: XCTestCase {
             isList: testNode.isList,
             childrenCount: testNode.childrenCount,
             tags: [
-                Tag(id: "tag-1", name: "Important", color: "#FF0000"),
-                Tag(id: "tag-2", name: "Work", color: "#0000FF"),
-                Tag(id: "tag-3", name: "Urgent", color: "#00FF00") // New tag
+                Tag(id: "tag-1", name: "Important", color: "#FF0000", description: nil, createdAt: nil),
+                Tag(id: "tag-2", name: "Work", color: "#0000FF", description: nil, createdAt: nil),
+                Tag(id: "tag-3", name: "Urgent", color: "#00FF00", description: nil, createdAt: nil) // New tag
             ]
         )
 
@@ -108,9 +108,9 @@ class TagManagementTests: XCTestCase {
             isList: testNode.isList,
             childrenCount: testNode.childrenCount,
             tags: [
-                Tag(id: "tag-1", name: "Important", color: "#FF0000"),
-                Tag(id: "tag-2", name: "Work", color: "#0000FF"),
-                Tag(id: "tag-3", name: "NewTag", color: "#FFFF00")
+                Tag(id: "tag-1", name: "Important", color: "#FF0000", description: nil, createdAt: nil),
+                Tag(id: "tag-2", name: "Work", color: "#0000FF", description: nil, createdAt: nil),
+                Tag(id: "tag-3", name: "NewTag", color: "#FFFF00", description: nil, createdAt: nil)
             ]
         )
 
@@ -144,7 +144,7 @@ class TagManagementTests: XCTestCase {
             isList: testNode.isList,
             childrenCount: testNode.childrenCount,
             tags: [
-                Tag(id: "tag-1", name: "Important", color: "#FF0000")
+                Tag(id: "tag-1", name: "Important", color: "#FF0000", description: nil, createdAt: nil)
                 // "Work" tag removed
             ]
         )
@@ -215,9 +215,9 @@ class TagManagementTests: XCTestCase {
             isList: testNode.isList,
             childrenCount: testNode.childrenCount,
             tags: [
-                Tag(id: "tag-1", name: "Important", color: "#FF0000"),
-                Tag(id: "tag-2", name: "Work", color: "#0000FF"),
-                Tag(id: "tag-3", name: "NewTag", color: "#00FF00")
+                Tag(id: "tag-1", name: "Important", color: "#FF0000", description: nil, createdAt: nil),
+                Tag(id: "tag-2", name: "Work", color: "#0000FF", description: nil, createdAt: nil),
+                Tag(id: "tag-3", name: "NewTag", color: "#00FF00", description: nil, createdAt: nil)
             ]
         )
 
@@ -235,10 +235,10 @@ class TagManagementTests: XCTestCase {
     func testTagSearch_FiltersResults() {
         // Given
         let tags = [
-            Tag(id: "1", name: "Important", color: "#FF0000"),
-            Tag(id: "2", name: "Work", color: "#0000FF"),
-            Tag(id: "3", name: "Personal", color: "#00FF00"),
-            Tag(id: "4", name: "Improvement", color: "#FFFF00")
+            Tag(id: "1", name: "Important", color: "#FF0000", description: nil, createdAt: nil),
+            Tag(id: "2", name: "Work", color: "#0000FF", description: nil, createdAt: nil),
+            Tag(id: "3", name: "Personal", color: "#00FF00", description: nil, createdAt: nil),
+            Tag(id: "4", name: "Improvement", color: "#FFFF00", description: nil, createdAt: nil)
         ]
 
         // When

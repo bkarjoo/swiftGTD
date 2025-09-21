@@ -128,7 +128,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = [rootFolder, childTask1, childTask2, grandchildNote, unrelatedTask]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial state
         XCTAssertEqual(treeViewModel.allNodes.count, 5)
@@ -189,7 +189,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = [task1, task2]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Set focus on task1
         treeViewModel.focusedNodeId = "task1"
@@ -237,7 +237,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = [task1, task2]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Set focus on task2
         treeViewModel.focusedNodeId = "task2"
@@ -295,7 +295,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = [parentFolder, childTask, grandchildNote]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Focus on grandchild
         treeViewModel.focusedNodeId = "grandchild"
@@ -369,7 +369,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         mockDataManager.deleteError = URLError(.notConnectedToInternet)
         
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Act - Attempt delete that will fail
         treeViewModel.nodeToDelete = task1
@@ -391,7 +391,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = []
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify empty state
         XCTAssertEqual(treeViewModel.allNodes.count, 0)
@@ -505,7 +505,7 @@ final class TreeViewModelDeleteTests: XCTestCase {
         
         mockDataManager.mockNodes = [root, branch1, branch2, leaf1, subBranch1, deepLeaf1, leaf2, independent]
         treeViewModel.setDataManager(mockDataManager)
-        await treeViewModel.loadAllNodes()
+        await treeViewModel.initialLoad()
         
         // Verify initial structure
         XCTAssertEqual(treeViewModel.allNodes.count, 8)

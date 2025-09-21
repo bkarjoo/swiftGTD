@@ -6,7 +6,7 @@ import Foundation
 @testable import Networking
 
 /// Mock API for testing offline queue processing
-class MockQueueAPIClient: APIClientProtocol {
+class MockQueueAPIClient: MockAPIClientBase {
     var createFolderCalled = false
     var createTaskCalled = false
     var createNoteCalled = false
@@ -21,25 +21,25 @@ class MockQueueAPIClient: APIClientProtocol {
     var deletedNodeIds: [String] = []
     var toggledTasks: [(nodeId: String, completed: Bool)] = []
     
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
     
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
     }
     
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         return []
     }
     
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return []
     }
     
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
     }
     
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         if shouldFailCreate {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
         }
@@ -54,11 +54,11 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
     
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         throw NSError(domain: "MockAPI", code: 0, userInfo: nil)
     }
     
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         if shouldFailDelete {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Delete failed"])
         }
@@ -66,11 +66,11 @@ class MockQueueAPIClient: APIClientProtocol {
         deletedNodeIds.append(id)
     }
     
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return []
     }
     
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         if shouldFailToggle {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Toggle failed"])
         }
@@ -88,7 +88,7 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
     
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         if shouldFailCreate {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
         }
@@ -105,7 +105,7 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
     
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         if shouldFailCreate {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
         }
@@ -123,7 +123,7 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
     
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         if shouldFailCreate {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
         }
@@ -141,7 +141,7 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
     
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         if shouldFailCreate {
             throw NSError(domain: "MockAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Create failed"])
         }
@@ -157,7 +157,7 @@ class MockQueueAPIClient: APIClientProtocol {
         )
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }
@@ -168,7 +168,7 @@ class MockQueueAPIClient: APIClientProtocol {
 class TestableOfflineQueueManager {
     var pendingOperations: [OfflineQueueManager.QueuedOperation] = []
     var isSyncing = false
-    var mockAPI: APIClientProtocol?
+    var mockAPI: MockAPIClientBase?
     
     func clearQueue() async {
         pendingOperations.removeAll()
@@ -221,7 +221,7 @@ class TestableOfflineQueueManager {
     }
     
     /// Process operations with injectable API for testing
-    func processPendingOperationsWithAPI(_ api: APIClientProtocol) async -> (succeeded: Int, failed: Int, tempIdMap: [String: String]) {
+    func processPendingOperationsWithAPI(_ api: MockAPIClientBase) async -> (succeeded: Int, failed: Int, tempIdMap: [String: String]) {
         guard !pendingOperations.isEmpty else {
             return (0, 0, [:])
         }
@@ -261,7 +261,7 @@ class TestableOfflineQueueManager {
         return (succeeded, failed, tempIdMap)
     }
     
-    private func processOperationWithAPI(_ operation: OfflineQueueManager.QueuedOperation, api: APIClientProtocol, tempIdMap: inout [String: String]) async -> Bool {
+    private func processOperationWithAPI(_ operation: OfflineQueueManager.QueuedOperation, api: MockAPIClientBase, tempIdMap: inout [String: String]) async -> Bool {
         switch operation.type {
         case .create:
             guard let nodeData = operation.nodeData,
@@ -336,6 +336,23 @@ class TestableOfflineQueueManager {
         case .update:
             // Not implemented
             return false
+
+        case .updateNode:
+            // Handle updateNode operation
+            guard let nodeId = operation.nodeId,
+                  let updateData = operation.nodeData,
+                  let update = try? JSONDecoder().decode(NodeUpdate.self, from: updateData) else {
+                return false
+            }
+
+            let actualNodeId = tempIdMap[nodeId] ?? nodeId
+
+            do {
+                _ = try await api.updateNode(id: actualNodeId, update: update)
+                return true
+            } catch {
+                return false
+            }
         }
     }
     

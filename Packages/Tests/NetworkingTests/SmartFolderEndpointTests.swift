@@ -150,9 +150,15 @@ final class SmartFolderEndpointTests: XCTestCase {
         do {
             _ = try await apiClient.executeSmartFolderRule(smartFolderId: smartFolderId)
             XCTFail("Should have thrown an error")
+        } catch let error as APIError {
+            // Expected error - URLError gets wrapped as APIError.networkError
+            if case .networkError(let underlyingError) = error {
+                XCTAssertTrue(underlyingError is URLError)
+            } else {
+                XCTFail("Expected APIError.networkError, got \(error)")
+            }
         } catch {
-            // Expected error
-            XCTAssertTrue(error is URLError)
+            XCTFail("Expected APIError, got \(error)")
         }
     }
 
@@ -175,9 +181,15 @@ final class SmartFolderEndpointTests: XCTestCase {
         do {
             _ = try await apiClient.executeSmartFolderRule(smartFolderId: smartFolderId)
             XCTFail("Should have thrown a decoding error")
+        } catch let error as APIError {
+            // Expected error - DecodingError gets wrapped as APIError.decodingError
+            if case .decodingError(let underlyingError) = error {
+                XCTAssertTrue(underlyingError is DecodingError)
+            } else {
+                XCTFail("Expected APIError.decodingError, got \(error)")
+            }
         } catch {
-            // Expected decoding error
-            XCTAssertTrue(error is DecodingError)
+            XCTFail("Expected APIError, got \(error)")
         }
     }
 }

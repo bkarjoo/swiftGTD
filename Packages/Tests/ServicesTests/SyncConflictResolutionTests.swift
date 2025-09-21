@@ -7,7 +7,7 @@ import Combine
 @testable import Networking
 
 /// Mock API client that can simulate server state for conflict testing
-class MockConflictAPIClient: APIClientProtocol {
+class MockConflictAPIClient: MockAPIClientBase {
     var serverNodes: [Node] = []
     var conflictStrategy: ConflictStrategy = .serverWins
     var operationsProcessed: [(type: String, node: Node)] = []
@@ -19,29 +19,29 @@ class MockConflictAPIClient: APIClientProtocol {
     }
 
     // MARK: - Auth
-    func setAuthToken(_ token: String?) {}
+    override func setAuthToken(_ token: String?) {}
 
-    func getCurrentUser() async throws -> User {
+    override func getCurrentUser() async throws -> User {
         return User(id: "test-user", email: "test@example.com", fullName: "Test User")
     }
 
     // MARK: - Core Node Operations
-    func getNodes(parentId: String?) async throws -> [Node] {
+    override func getNodes(parentId: String?) async throws -> [Node] {
         return serverNodes.filter { $0.parentId == parentId }
     }
 
-    func getAllNodes() async throws -> [Node] {
+    override func getAllNodes() async throws -> [Node] {
         return serverNodes
     }
 
-    func getNode(id: String) async throws -> Node {
+    override func getNode(id: String) async throws -> Node {
         if let node = serverNodes.first(where: { $0.id == id }) {
             return node
         }
         throw APIError.httpError(404)
     }
 
-    func createNode(_ node: Node) async throws -> Node {
+    override func createNode(_ node: Node) async throws -> Node {
         let serverNode = Node(
             id: "server-\(UUID().uuidString.prefix(8))",
             title: node.title,
@@ -59,7 +59,7 @@ class MockConflictAPIClient: APIClientProtocol {
         return serverNode
     }
 
-    func updateNode(id: String, update: NodeUpdate) async throws -> Node {
+    override func updateNode(id: String, update: NodeUpdate) async throws -> Node {
         guard let index = serverNodes.firstIndex(where: { $0.id == id }) else {
             throw APIError.httpError(404)
         }
@@ -107,7 +107,7 @@ class MockConflictAPIClient: APIClientProtocol {
         return resolvedNode
     }
 
-    func deleteNode(id: String) async throws {
+    override func deleteNode(id: String) async throws {
         if let index = serverNodes.firstIndex(where: { $0.id == id }) {
             let node = serverNodes[index]
             serverNodes.remove(at: index)
@@ -116,12 +116,12 @@ class MockConflictAPIClient: APIClientProtocol {
     }
 
     // MARK: - Tags
-    func getTags() async throws -> [Tag] {
+    override func getTags() async throws -> [Tag] {
         return []
     }
 
     // MARK: - Task Operations
-    func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
+    override func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node {
         guard let index = serverNodes.firstIndex(where: { $0.id == nodeId }) else {
             throw APIError.httpError(404)
         }
@@ -150,7 +150,7 @@ class MockConflictAPIClient: APIClientProtocol {
     }
 
     // MARK: - Specialized Node Creation
-    func createFolder(title: String, parentId: String?) async throws -> Node {
+    override func createFolder(title: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -163,7 +163,7 @@ class MockConflictAPIClient: APIClientProtocol {
         ))
     }
 
-    func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
+    override func createTask(title: String, parentId: String?, description: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -177,7 +177,7 @@ class MockConflictAPIClient: APIClientProtocol {
         ))
     }
 
-    func createNote(title: String, parentId: String?, body: String) async throws -> Node {
+    override func createNote(title: String, parentId: String?, body: String) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -191,7 +191,7 @@ class MockConflictAPIClient: APIClientProtocol {
         ))
     }
 
-    func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
+    override func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node {
         return try await createNode(Node(
             id: UUID().uuidString,
             title: title,
@@ -204,7 +204,7 @@ class MockConflictAPIClient: APIClientProtocol {
         ))
     }
 
-    func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
+    override func executeSmartFolderRule(smartFolderId: String) async throws -> [Node] {
         // Return empty array for smart folder tests
         return []
     }

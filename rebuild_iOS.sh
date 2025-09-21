@@ -64,7 +64,11 @@ xcodebuild clean -project SwiftGTD.xcodeproj -scheme SwiftGTD -destination "plat
 
 # Build the app
 echo "Building SwiftGTD..."
-xcodebuild build -project SwiftGTD.xcodeproj -scheme SwiftGTD -destination "platform=iOS Simulator,id=$SIMULATOR_ID" | xcpretty
+xcodebuild build -project SwiftGTD.xcodeproj -scheme SwiftGTD -destination "platform=iOS Simulator,id=$SIMULATOR_ID" 2>&1 | while read line; do
+    if echo "$line" | grep -E "(Building|Compiling|Linking|error:|warning:|BUILD)" > /dev/null; then
+        echo "$line"
+    fi
+done
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "❌ Build failed"

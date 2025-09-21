@@ -42,7 +42,7 @@ public enum Configuration {
         case "API_BASE_URL":
             #if DEBUG
             // Development fallback only
-            return "http://localhost:8003"
+            return "http://100.68.227.105:8003"  // Tailscale IP (bkarjoo-ms-7b98)
             #else
             // Production must have proper configuration
             fatalError("API_BASE_URL not configured. Provide Info.plist entry or environment variable.")

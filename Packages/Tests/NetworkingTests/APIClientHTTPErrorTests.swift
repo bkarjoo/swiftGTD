@@ -79,7 +79,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(400)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 400, "Should throw httpError with code 400")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -108,7 +108,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(401)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 401, "Should throw httpError with code 401")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -137,7 +137,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(403)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 403, "Should throw httpError with code 403")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -166,7 +166,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(404)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 404, "Should throw httpError with code 404")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -204,7 +204,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(422)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 422, "Should throw httpError with code 422")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -233,7 +233,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(500)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 500, "Should throw httpError with code 500")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -262,7 +262,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(503)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code):
+            case .httpError(let code, _):
                 XCTAssertEqual(code, 503, "Should throw httpError with code 503")
             default:
                 XCTFail("Should throw httpError, but got: \(error)")
@@ -276,10 +276,10 @@ final class APIClientHTTPErrorTests: XCTestCase {
     
     func testAPIError_httpError_hasCorrectDescription() {
         // Arrange & Act
-        let error400 = APIError.httpError(400)
-        let error401 = APIError.httpError(401)
-        let error404 = APIError.httpError(404)
-        let error500 = APIError.httpError(500)
+        let error400 = APIError.httpError(400, message: nil)
+        let error401 = APIError.httpError(401, message: nil)
+        let error404 = APIError.httpError(404, message: nil)
+        let error500 = APIError.httpError(500, message: nil)
         
         // Assert
         XCTAssertEqual(error400.errorDescription, "HTTP error: 400")

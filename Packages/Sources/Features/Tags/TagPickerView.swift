@@ -1,6 +1,6 @@
 import SwiftUI
 import Models
-import Networking
+import Services
 import Core
 
 private let logger = Logger.shared
@@ -16,6 +16,7 @@ public struct TagPickerView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var dataManager: DataManager
     
     // Debounce timer for search
     @State private var searchTask: Task<Void, Never>?
@@ -263,10 +264,8 @@ public struct TagPickerView: View {
         errorMessage = nil
         
         do {
-            let api = APIClient.shared
-            
             // Load all available tags
-            availableTags = try await api.getTags()
+            availableTags = try await dataManager.getTags()
             
             // Load tags attached to this node
             nodeTags = node.tags // Use the tags already on the node
@@ -287,8 +286,7 @@ public struct TagPickerView: View {
         }
         
         do {
-            let api = APIClient.shared
-            filteredTags = try await api.searchTags(query: query, limit: 10)
+            filteredTags = try await dataManager.searchTags(query: query, limit: 10)
             logger.log("✅ Found \(filteredTags.count) tags for query: \(query)", category: "TagPickerView")
         } catch {
             logger.log("❌ Failed to search tags: \(error)", level: .error, category: "TagPickerView")
@@ -303,16 +301,14 @@ public struct TagPickerView: View {
     
     private func toggleTag(_ tag: Tag) async {
         do {
-            let api = APIClient.shared
-            
             if nodeTags.contains(where: { $0.id == tag.id }) {
                 // Detach tag
-                try await api.detachTagFromNode(nodeId: node.id, tagId: tag.id)
+                try await dataManager.detachTagFromNode(nodeId: node.id, tagId: tag.id)
                 nodeTags.removeAll { $0.id == tag.id }
                 logger.log("✅ Detached tag: \(tag.name)", category: "TagPickerView")
             } else {
                 // Attach tag
-                try await api.attachTagToNode(nodeId: node.id, tagId: tag.id)
+                try await dataManager.attachTagToNode(nodeId: node.id, tagId: tag.id)
                 nodeTags.append(tag)
                 logger.log("✅ Attached tag: \(tag.name)", category: "TagPickerView")
             }
@@ -324,14 +320,12 @@ public struct TagPickerView: View {
     
     private func createAndAttachTag(_ name: String) async {
         do {
-            let api = APIClient.shared
-            
             // Create or get existing tag
-            let tag = try await api.createTag(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+            let tag = try await dataManager.createTag(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
             
             // Attach to node if not already attached
             if !nodeTags.contains(where: { $0.id == tag.id }) {
-                try await api.attachTagToNode(nodeId: node.id, tagId: tag.id)
+                try await dataManager.attachTagToNode(nodeId: node.id, tagId: tag.id)
                 nodeTags.append(tag)
                 
                 // Add to available tags if not there
