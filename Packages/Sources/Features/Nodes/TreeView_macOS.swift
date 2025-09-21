@@ -33,6 +33,20 @@ public struct TreeView_macOS: View {
     }
     
     public var body: some View {
+        if isInTabbedView {
+            // In tabbed view, TabbedTreeView handles the create dialog sheet
+            mainContent
+        } else {
+            // In non-tabbed view, we handle our own create dialog sheet
+            mainContent
+                .sheet(isPresented: $viewModel.showingCreateDialog) {
+                    CreateNodeSheet(viewModel: viewModel)
+                        .environmentObject(dataManager)
+                }
+        }
+    }
+
+    private var mainContent: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 if viewModel.focusedNodeId != nil {
@@ -141,12 +155,6 @@ public struct TreeView_macOS: View {
             .toolbar {
                 if !isInTabbedView {
                     TreeToolbar(viewModel: viewModel)
-                }
-            }
-            .sheet(isPresented: $viewModel.showingCreateDialog) {
-                if !isInTabbedView {
-                    CreateNodeSheet(viewModel: viewModel)
-                        .environmentObject(dataManager)
                 }
             }
             .sheet(item: $viewModel.showingNoteEditorForNode) { node in

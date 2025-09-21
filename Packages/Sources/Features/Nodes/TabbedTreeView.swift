@@ -71,6 +71,10 @@ public struct TabbedTreeView: View {
                     CreateNodeSheet(viewModel: viewModel)
                         .environmentObject(dataManager)
                         .frame(minWidth: 400, minHeight: 150)
+                        .onDisappear {
+                            // Ensure showingCreateDialog is reset when sheet is dismissed
+                            viewModel.showingCreateDialog = false
+                        }
                 }
                 .sheet(isPresented: $showingNewTabDialog) {
                     NewTabSheet(tabName: $newTabName) {
@@ -147,6 +151,15 @@ public struct TabbedTreeView: View {
                 .environment(\.isInTabbedView, true)
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
                     saveState()
+                }
+                .onChange(of: currentTab.viewModel.showingCreateDialog) { isShowing in
+                    if isShowing {
+                        // Set activeCreateVM when keyboard shortcut triggers create dialog
+                        activeCreateVM = currentTab.viewModel
+                    } else if activeCreateVM?.id == currentTab.viewModel.id {
+                        // Clear activeCreateVM when dialog is dismissed
+                        activeCreateVM = nil
+                    }
                 }
                 .id(currentTab.id)
         }
