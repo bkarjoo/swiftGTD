@@ -321,7 +321,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         await MainActor.run {
             // If we were focused on a deleted node, unfocus
             if let focusedId = self.focusedNodeId, nodesToRemove.contains(focusedId) {
-                self.focusedNodeId = nil
+                self.setFocusedNode(nil)
             }
 
             // Set the new selection
@@ -598,7 +598,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
             case 36: // Return with Cmd - Open note editor
                 if let node = allNodes.first(where: { $0.id == selectedNodeId }),
                    node.nodeType == "note" {
-                    showingNoteEditorForNode = node
+                    openNoteEditor(node)
                     return true
                 }
                 return false
@@ -797,7 +797,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         case .activateNode:
             if node.nodeType == "note" {
-                showingNoteEditorForNode = node
+                openNoteEditor(node)
             } else if !getChildren(of: node.id).isEmpty || node.nodeType == "smart_folder" {
                 toggleExpansion(for: node.id)
             }
@@ -908,7 +908,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         switch node.nodeType {
         case "note":
             // Right arrow on note opens the note editor
-            showingNoteEditorForNode = node
+            openNoteEditor(node)
             return
 
         case "smart_folder":
@@ -1025,6 +1025,36 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
         return false
+    }
+
+    /// Open note editor for a node (unified method)
+    func openNoteEditor(_ node: Node) {
+        guard node.nodeType == "note" else { return }
+        showingNoteEditorForNode = node
+    }
+
+    /// Show tag picker for a node (unified method)
+    func showTagPicker(_ node: Node) {
+        guard node.nodeType != "smart_folder" else { return } // Smart folders don't support tags
+        showingTagPickerForNode = node
+    }
+
+    /// Show details for a node (unified method)
+    func showDetails(_ node: Node) {
+        showingDetailsForNode = node
+    }
+
+    /// Focus on a node with smart folder handling (unified method)
+    func focusOnNode(_ node: Node) {
+        setFocusedNode(node.id)
+        expandedNodes.insert(node.id)
+
+        // Execute smart folder if focusing on one
+        if node.nodeType == "smart_folder" {
+            Task {
+                await executeSmartFolder(node)
+            }
+        }
     }
 
     /// Toggle expansion state
@@ -1179,7 +1209,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
                 // Select and focus the newly created node
                 self.selectedNodeId = newNode.id
-                self.focusedNodeId = newNode.id
+                self.setFocusedNode(newNode.id)
             }
         } else {
             logger.log("❌ Failed to instantiate template", level: .error, category: "TreeViewModel")

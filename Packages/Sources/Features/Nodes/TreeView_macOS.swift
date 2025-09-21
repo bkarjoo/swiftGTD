@@ -132,7 +132,7 @@ public struct TreeView_macOS: View {
                     logger.log("⌨️ Cmd+D pressed - show details", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                        viewModel.showingDetailsForNode = selectedNode
+                        viewModel.showDetails(selectedNode)
                     }
                     return true
                 }
@@ -142,18 +142,9 @@ public struct TreeView_macOS: View {
                     logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
-                        if selectedNode.nodeType == "smart_folder" {
-                            logger.log("🧩 Smart folder detected, focusing and executing rule", category: "TreeView")
-                            viewModel.focusedNodeId = selectedNode.id
-                            viewModel.expandedNodes.insert(selectedNode.id)
-                            Task {
-                                await executeSmartFolderRule(for: selectedNode)
-                            }
-                        } else if selectedNode.nodeType != "note" {
-                            viewModel.focusedNodeId = selectedNode.id
-                            viewModel.expandedNodes.insert(selectedNode.id)
+                        if selectedNode.nodeType != "note" {
+                            viewModel.focusOnNode(selectedNode)
                         }
-                        NotificationCenter.default.post(name: .focusChanged, object: nil)
                     }
                     return true
                 }
@@ -163,9 +154,8 @@ public struct TreeView_macOS: View {
             case 17: // T key - Tags
                 logger.log("⌨️ Cmd+T pressed - show tags", category: "TreeView")
                 if let selectedId = viewModel.selectedNodeId,
-                   let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
-                   selectedNode.nodeType != "smart_folder" {  // Smart folders don't support tags
-                    viewModel.showingTagPickerForNode = selectedNode
+                   let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                    viewModel.showTagPicker(selectedNode)
                 }
                 return true
 
@@ -377,7 +367,7 @@ public struct TreeView_macOS: View {
 
         if currentNode.nodeType == "note" {
             logger.log("📝 Opening note editor for: \(currentNode.title)", category: "TreeView")
-            viewModel.showingNoteEditorForNode = currentNode
+            viewModel.openNoteEditor(currentNode)
             return
         }
 
@@ -397,7 +387,7 @@ public struct TreeView_macOS: View {
             } else {
                 if viewModel.focusedNodeId != currentId {
                     logger.log("🎯 Right arrow focusing on expanded node: \(currentNode.title)", category: "TreeView")
-                    viewModel.focusedNodeId = currentId
+                    viewModel.focusOnNode(currentNode)
                     viewModel.selectedNodeId = currentId
                 }
             }
@@ -405,7 +395,7 @@ public struct TreeView_macOS: View {
             // Node has no children - still focus it
             if viewModel.focusedNodeId != currentId {
                 logger.log("🎯 Right arrow focusing on node without children: \(currentNode.title)", category: "TreeView")
-                viewModel.focusedNodeId = currentId
+                viewModel.focusOnNode(currentNode)
                 viewModel.selectedNodeId = currentId
             }
         }
@@ -428,11 +418,11 @@ public struct TreeView_macOS: View {
         if viewModel.focusedNodeId == currentId {
             if let parentId = currentNode.parentId {
                 logger.log("🎯 Left arrow moving focus from \(currentNode.title) to parent", category: "TreeView")
-                viewModel.focusedNodeId = parentId
+                viewModel.setFocusedNode(parentId)
                 // Keep selection on current node, don't move it to parent
             } else {
                 logger.log("🎯 Left arrow exiting focus mode from root node", category: "TreeView")
-                viewModel.focusedNodeId = nil
+                viewModel.setFocusedNode(nil)
                 // Keep selection on current node
             }
             return
@@ -684,7 +674,11 @@ private struct TreeContent: View {
                 onNodeDrop: viewModel.performReorder,
                 onExecuteSmartFolder: viewModel.executeSmartFolder,
                 onInstantiateTemplate: viewModel.instantiateTemplate,
-                onCollapseNode: viewModel.collapseNode
+                onCollapseNode: viewModel.collapseNode,
+                onFocusNode: viewModel.focusOnNode,
+                onOpenNoteEditor: viewModel.openNoteEditor,
+                onShowTagPicker: viewModel.showTagPicker,
+                onShowDetails: viewModel.showDetails
             )
         } else {
             ForEach(viewModel.getRootNodes()) { node in
@@ -710,7 +704,11 @@ private struct TreeContent: View {
                     onNodeDrop: viewModel.performReorder,
                     onExecuteSmartFolder: viewModel.executeSmartFolder,
                     onInstantiateTemplate: viewModel.instantiateTemplate,
-                    onCollapseNode: viewModel.collapseNode
+                    onCollapseNode: viewModel.collapseNode,
+                    onFocusNode: viewModel.focusOnNode,
+                    onOpenNoteEditor: viewModel.openNoteEditor,
+                    onShowTagPicker: viewModel.showTagPicker,
+                    onShowDetails: viewModel.showDetails
                 )
             }
         }

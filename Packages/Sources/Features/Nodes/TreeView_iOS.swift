@@ -176,7 +176,11 @@ private struct TreeContent: View {
                 onNodeDrop: viewModel.performReorder,
                 onExecuteSmartFolder: viewModel.executeSmartFolder,
                 onInstantiateTemplate: viewModel.instantiateTemplate,
-                onCollapseNode: viewModel.collapseNode
+                onCollapseNode: viewModel.collapseNode,
+                onFocusNode: viewModel.focusOnNode,
+                onOpenNoteEditor: viewModel.openNoteEditor,
+                onShowTagPicker: viewModel.showTagPicker,
+                onShowDetails: viewModel.showDetails
             )
         } else {
             // Normal mode - show root nodes
@@ -203,7 +207,11 @@ private struct TreeContent: View {
                     onNodeDrop: viewModel.performReorder,
                     onExecuteSmartFolder: viewModel.executeSmartFolder,
                     onInstantiateTemplate: viewModel.instantiateTemplate,
-                    onCollapseNode: viewModel.collapseNode
+                    onCollapseNode: viewModel.collapseNode,
+                    onFocusNode: viewModel.focusOnNode,
+                    onOpenNoteEditor: viewModel.openNoteEditor,
+                    onShowTagPicker: viewModel.showTagPicker,
+                    onShowDetails: viewModel.showDetails
                 )
             }
         }

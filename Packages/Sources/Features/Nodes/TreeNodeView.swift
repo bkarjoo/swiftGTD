@@ -36,6 +36,10 @@ public struct TreeNodeView: View {
     let onExecuteSmartFolder: ((Node) async -> Void)?  // Execute smart folder
     let onInstantiateTemplate: ((Node) async -> Void)?  // Instantiate template
     let onCollapseNode: ((String) -> Void)?  // Collapse node with proper selection handling
+    let onFocusNode: ((Node) -> Void)?  // Focus on node (unified method)
+    let onOpenNoteEditor: ((Node) -> Void)?  // Open note editor (unified method)
+    let onShowTagPicker: ((Node) -> Void)?  // Show tag picker (unified method)
+    let onShowDetails: ((Node) -> Void)?  // Show details (unified method)
 
     @State private var showingDetailsForNode: Node?
     @State private var showingTagPickerForNode: Node?
@@ -134,7 +138,11 @@ public struct TreeNodeView: View {
                             }
                         } else {
                             logger.log("📄 Showing details for regular node", category: "TreeNodeView")
-                            showingDetailsForNode = node
+                            if let onShowDetails = onShowDetails {
+                                onShowDetails(node)
+                            } else {
+                                showingDetailsForNode = node
+                            }
                         }
                     }) {
                         Label(node.nodeType == "smart_folder" ? "Execute" : "Details",
@@ -146,9 +154,13 @@ public struct TreeNodeView: View {
                         Button(action: {
                             logger.log("🔘 Focus button clicked for node: \(node.id)", category: "TreeNodeView")
                             // Focus on this node
-                            focusedNodeId = node.id
-                            expandedNodes.insert(node.id)
-                            NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
+                            if let onFocusNode = onFocusNode {
+                                onFocusNode(node)
+                            } else {
+                                focusedNodeId = node.id
+                                expandedNodes.insert(node.id)
+                                NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
+                            }
                         }) {
                             Label("Focus", systemImage: "arrow.right.circle")
                         }
@@ -161,7 +173,11 @@ public struct TreeNodeView: View {
                     if node.nodeType != "smart_folder" {
                         Button(action: {
                             logger.log("🔘 Tags selected for node: \(node.id) - \(node.title)", category: "TreeNodeView")
-                            showingTagPickerForNode = node
+                            if let onShowTagPicker = onShowTagPicker {
+                                onShowTagPicker(node)
+                            } else {
+                                showingTagPickerForNode = node
+                            }
                         }) {
                             Label("Tags", systemImage: "tag")
                         }
@@ -224,7 +240,11 @@ public struct TreeNodeView: View {
                         onNodeDrop: onNodeDrop,
                         onExecuteSmartFolder: onExecuteSmartFolder,
                         onInstantiateTemplate: onInstantiateTemplate,
-                        onCollapseNode: onCollapseNode
+                        onCollapseNode: onCollapseNode,
+                        onFocusNode: onFocusNode,
+                        onOpenNoteEditor: onOpenNoteEditor,
+                        onShowTagPicker: onShowTagPicker,
+                        onShowDetails: onShowDetails
                     )
                 }
             }
@@ -377,13 +397,21 @@ public struct TreeNodeView: View {
                         if node.nodeType == "note" {
                             // Open note editor for note nodes
                             logger.log("📝 Opening note editor for: \(node.title)", category: "TreeNodeView")
-                            showingNoteEditorForNode = node
+                            if let onOpenNoteEditor = onOpenNoteEditor {
+                                onOpenNoteEditor(node)
+                            } else {
+                                showingNoteEditorForNode = node
+                            }
                         } else {
                             // Focus on this node (make it the new root)
                             logger.log("🎯 Title clicked - focusing on node: \(node.id)", category: "TreeNodeView")
-                            focusedNodeId = node.id
-                            // Auto-expand when focusing
-                            expandedNodes.insert(node.id)
+                            if let onFocusNode = onFocusNode {
+                                onFocusNode(node)
+                            } else {
+                                focusedNodeId = node.id
+                                // Auto-expand when focusing
+                                expandedNodes.insert(node.id)
+                            }
 
                             // If selected node is not within this focused branch, move selection to focused node
                             if let currentSelected = selectedNodeId {
