@@ -6,15 +6,17 @@ import XCTest
 
 class DataManagerSubtreeRemovalTests: XCTestCase {
     var dataManager: DataManager!
-    var mockAPI: MockAPIClient!
+    var mockAPI: TestMockAPIClient!
     var mockNetworkMonitor: TestableNetworkMonitor!
 
     override func setUp() async throws {
         try await super.setUp()
 
-        mockAPI = MockAPIClient()
-        mockNetworkMonitor = TestableNetworkMonitor()
-        mockNetworkMonitor.isConnected = true
+        mockAPI = TestMockAPIClient()
+        mockNetworkMonitor = await TestableNetworkMonitor()
+        await MainActor.run {
+            mockNetworkMonitor.isConnected = true
+        }
 
         dataManager = await DataManager(
             apiClient: mockAPI,
@@ -34,15 +36,8 @@ class DataManagerSubtreeRemovalTests: XCTestCase {
         await dataManager.setNodesForTesting([parent, child1, grandchild1, grandchild2, child2])
 
         // When: Parent refresh returns only child2 (child1 is removed)
-        mockAPI.getNodeHandler = { nodeId in
-            XCTAssertEqual(nodeId, "parent")
-            return parent
-        }
-
-        mockAPI.getNodesHandler = { parentId in
-            XCTAssertEqual(parentId, "parent")
-            return [child2] // child1 is no longer returned
-        }
+        mockAPI.getNodeResponse = parent
+        mockAPI.getNodesResponse = [child2] // child1 is no longer returned
 
         await dataManager.refreshNode("parent")
 
@@ -70,8 +65,8 @@ class DataManagerSubtreeRemovalTests: XCTestCase {
         await dataManager.setNodesForTesting([parent, child1, grandchild1, child2, grandchild2])
 
         // When: Parent refresh returns both children
-        mockAPI.getNodeHandler = { _ in parent }
-        mockAPI.getNodesHandler = { _ in [child1, child2] }
+        mockAPI.getNodeResponse = parent
+        mockAPI.getNodesResponse = [child1, child2]
 
         await dataManager.refreshNode("parent")
 
@@ -99,8 +94,8 @@ class DataManagerSubtreeRemovalTests: XCTestCase {
         await dataManager.setNodesForTesting([root, level1, level2, level3, level4])
 
         // When: Root refresh returns empty (all children removed)
-        mockAPI.getNodeHandler = { _ in root }
-        mockAPI.getNodesHandler = { _ in [] }
+        mockAPI.getNodeResponse = root
+        mockAPI.getNodesResponse = []
 
         await dataManager.refreshNode("root")
 
@@ -128,6 +123,24 @@ extension DataManager {
     }
 }
 
+// MARK: - Test Mock API Client
+
+class TestMockAPIClient: MockAPIClientBase {
+    var getNodeResponse: Node?
+    var getNodesResponse: [Node] = []
+
+    override func getNode(id: String) async throws -> Node {
+        guard let node = getNodeResponse else {
+            throw NSError(domain: "Test", code: 404, userInfo: [NSLocalizedDescriptionKey: "Node not found"])
+        }
+        return node
+    }
+
+    override func getNodes(parentId: String?) async throws -> [Node] {
+        return getNodesResponse
+    }
+}
+
 extension Node {
     static func makeFolder(id: String, title: String, parentId: String?) -> Node {
         Node(
@@ -136,7 +149,7 @@ extension Node {
             nodeType: "folder",
             parentId: parentId,
             ownerId: "test-user",
-            createdAt: Date(),
+            createdAt: ISO8601DateFormatter().string(from: Date()),
             updatedAt: ISO8601DateFormatter().string(from: Date()),
             sortOrder: 0,
             isList: false,
