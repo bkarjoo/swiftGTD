@@ -30,6 +30,13 @@ public class TabModel: ObservableObject, Identifiable {
                 NotificationCenter.default.post(name: .tabStateChanged, object: nil)
             }
             .store(in: &cancellables)
+
+        // Forward viewModel changes to trigger view updates
+        self.viewModel.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -43,7 +50,6 @@ public struct TabbedTreeView: View {
     @Environment(\.scenePhase) var scenePhase
     @State private var tabs: [TabModel] = []
     @State private var selectedTabId: UUID?
-    @State private var activeCreateVM: TreeViewModel?
     @State private var showingNewTabDialog = false
     @State private var newTabName = ""
     @State private var editingTabId: UUID?
@@ -66,15 +72,6 @@ public struct TabbedTreeView: View {
                 .navigationTitle(currentTab?.viewModel.currentFocusedNode?.title ?? "All Nodes")
                 .toolbar {
                     toolbarContent
-                }
-                .sheet(item: $activeCreateVM) { viewModel in
-                    CreateNodeSheet(viewModel: viewModel)
-                        .environmentObject(dataManager)
-                        .frame(minWidth: 400, minHeight: 150)
-                        .onDisappear {
-                            // Ensure showingCreateDialog is reset when sheet is dismissed
-                            viewModel.showingCreateDialog = false
-                        }
                 }
                 .sheet(isPresented: $showingNewTabDialog) {
                     NewTabSheet(tabName: $newTabName) {
@@ -152,15 +149,6 @@ public struct TabbedTreeView: View {
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
                     saveState()
                 }
-                .onChange(of: currentTab.viewModel.showingCreateDialog) { isShowing in
-                    if isShowing {
-                        // Set activeCreateVM when keyboard shortcut triggers create dialog
-                        activeCreateVM = currentTab.viewModel
-                    } else if activeCreateVM?.id == currentTab.viewModel.id {
-                        // Clear activeCreateVM when dialog is dismissed
-                        activeCreateVM = nil
-                    }
-                }
                 .id(currentTab.id)
         }
     }
@@ -191,27 +179,27 @@ public struct TabbedTreeView: View {
                     Button("Folder") {
                         currentTab.viewModel.createNodeType = "folder"
                         currentTab.viewModel.createNodeTitle = ""
-                        activeCreateVM = currentTab.viewModel
+                        currentTab.viewModel.showingCreateDialog = true
                     }
                     Button("Task") {
                         currentTab.viewModel.createNodeType = "task"
                         currentTab.viewModel.createNodeTitle = ""
-                        activeCreateVM = currentTab.viewModel
+                        currentTab.viewModel.showingCreateDialog = true
                     }
                     Button("Note") {
                         currentTab.viewModel.createNodeType = "note"
                         currentTab.viewModel.createNodeTitle = ""
-                        activeCreateVM = currentTab.viewModel
+                        currentTab.viewModel.showingCreateDialog = true
                     }
                     Button("Template") {
                         currentTab.viewModel.createNodeType = "template"
                         currentTab.viewModel.createNodeTitle = ""
-                        activeCreateVM = currentTab.viewModel
+                        currentTab.viewModel.showingCreateDialog = true
                     }
                     Button("Smart Folder") {
                         currentTab.viewModel.createNodeType = "smart_folder"
                         currentTab.viewModel.createNodeTitle = ""
-                        activeCreateVM = currentTab.viewModel
+                        currentTab.viewModel.showingCreateDialog = true
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -263,19 +251,43 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            logger.log("🎹 KEYBOARD EVENT RECEIVED:", category: "KEYBOARD")
+            logger.log("  - keyCode: \(event.keyCode)", category: "KEYBOARD")
+            logger.log("  - characters: '\(event.characters ?? "nil")'", category: "KEYBOARD")
+            logger.log("  - modifiers: \(event.modifierFlags.rawValue)", category: "KEYBOARD")
+            logger.log("  - Cmd: \(event.modifierFlags.contains(.command))", category: "KEYBOARD")
+            logger.log("  - Shift: \(event.modifierFlags.contains(.shift))", category: "KEYBOARD")
+            logger.log("  - Option: \(event.modifierFlags.contains(.option))", category: "KEYBOARD")
+            logger.log("  - Control: \(event.modifierFlags.contains(.control))", category: "KEYBOARD")
+
             guard let currentTab = self.currentTab else {
+                logger.log("❌ NO CURRENT TAB - returning event", category: "KEYBOARD")
                 return event
             }
             let viewModel = currentTab.viewModel
+            logger.log("✅ Current tab: '\(currentTab.title)'", category: "KEYBOARD")
 
             // Don't process if text field has focus
             if let firstResponder = NSApp.keyWindow?.firstResponder {
+                logger.log("🔍 First responder type: \(type(of: firstResponder))", category: "KEYBOARD")
                 if firstResponder is NSTextView || firstResponder is NSTextField {
+                    logger.log("❌ TEXT FIELD HAS FOCUS - returning event", category: "KEYBOARD")
                     return event
                 }
             }
 
             // Don't process if ANY modal is showing
+            logger.log("🔍 Modal states:", category: "KEYBOARD")
+            logger.log("  - showingNewTabDialog: \(self.showingNewTabDialog)", category: "KEYBOARD")
+            logger.log("  - editingTabId: \(self.editingTabId != nil)", category: "KEYBOARD")
+            logger.log("  - showingDeleteAlert: \(viewModel.showingDeleteAlert)", category: "KEYBOARD")
+            logger.log("  - showingCreateDialog: \(viewModel.showingCreateDialog)", category: "KEYBOARD")
+            logger.log("  - showingDetailsForNode: \(viewModel.showingDetailsForNode != nil)", category: "KEYBOARD")
+            logger.log("  - showingTagPickerForNode: \(viewModel.showingTagPickerForNode != nil)", category: "KEYBOARD")
+            logger.log("  - showingNoteEditorForNode: \(viewModel.showingNoteEditorForNode != nil)", category: "KEYBOARD")
+            logger.log("  - showingHelpWindow: \(viewModel.showingHelpWindow)", category: "KEYBOARD")
+            logger.log("  - isEditing: \(viewModel.isEditing)", category: "KEYBOARD")
+
             if self.showingNewTabDialog ||
                self.editingTabId != nil ||
                viewModel.showingDeleteAlert ||
@@ -285,6 +297,7 @@ public struct TabbedTreeView: View {
                viewModel.showingNoteEditorForNode != nil ||
                viewModel.showingHelpWindow ||
                viewModel.isEditing {
+                logger.log("❌ MODAL IS SHOWING - returning event", category: "KEYBOARD")
                 return event
             }
 
@@ -293,19 +306,24 @@ public struct TabbedTreeView: View {
 
             // MARK: - Tab Management (Cmd shortcuts)
             if modifiers.contains(.command) {
+                logger.log("🎯 Processing COMMAND key combination", category: "KEYBOARD")
                 switch keyCode {
                 case 17: // Cmd+Shift+T - New tab
                     if modifiers.contains(.shift) {
+                        logger.log("✅ HANDLED: Cmd+Shift+T - New tab", category: "KEYBOARD")
                         self.addNewTab()
                         return nil
                     }
+                    logger.log("🔄 Cmd+T (not Shift) - falling through for tags", category: "KEYBOARD")
                     // Fall through for Cmd+T (tags)
 
                 case 13: // Cmd+W - Close tab
                     if let tabId = self.selectedTabId {
+                        logger.log("✅ HANDLED: Cmd+W - Close tab", category: "KEYBOARD")
                         self.closeTab(tabId)
                         return nil
                     }
+                    logger.log("⚠️ Cmd+W but no selected tab", category: "KEYBOARD")
 
                 // Tab switching
                 case 18: // Cmd+1
@@ -361,10 +379,18 @@ public struct TabbedTreeView: View {
 
             // MARK: - All Node Operations - Delegate to TreeViewModel
             // This includes arrow keys, creation shortcuts, etc.
-            if viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers) {
+            logger.log("🔄 DELEGATING to TreeViewModel.handleKeyPress", category: "KEYBOARD")
+            logger.log("  - selectedNodeId: \(viewModel.selectedNodeId ?? "nil")", category: "KEYBOARD")
+            logger.log("  - focusedNodeId: \(viewModel.focusedNodeId ?? "nil")", category: "KEYBOARD")
+
+            let handled = viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers)
+            if handled {
+                logger.log("✅✅✅ TreeViewModel HANDLED the key - returning nil", category: "KEYBOARD")
                 return nil
+            } else {
+                logger.log("❌❌❌ TreeViewModel DID NOT handle - returning event (BEEP!)", category: "KEYBOARD")
+                return event
             }
-            return event
         }
     }
 
@@ -525,7 +551,7 @@ public struct TabbedTreeView: View {
         viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
 
         // Show the create dialog
-        self.activeCreateVM = viewModel
+        viewModel.showingCreateDialog = true
     }
 
     private func setupStateChangeObservers() {

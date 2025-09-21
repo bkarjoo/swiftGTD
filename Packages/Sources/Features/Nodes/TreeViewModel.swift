@@ -525,14 +525,25 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Centralized keyboard event handling
     func handleKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+        logger.log("🎯 TreeViewModel.handleKeyPress CALLED", category: "KEYBOARD-VM")
+        logger.log("  - keyCode: \(keyCode)", category: "KEYBOARD-VM")
+        logger.log("  - modifiers: \(modifiers.rawValue)", category: "KEYBOARD-VM")
+        logger.log("  - selectedNodeId: \(selectedNodeId ?? "nil")", category: "KEYBOARD-VM")
+        logger.log("  - focusedNodeId: \(focusedNodeId ?? "nil")", category: "KEYBOARD-VM")
+        logger.log("  - isEditing: \(isEditing)", category: "KEYBOARD-VM")
+        logger.log("  - showingCreateDialog: \(showingCreateDialog)", category: "KEYBOARD-VM")
 
         // Handle Command key combinations
         if modifiers.contains(.command) {
+            logger.log("📌 Processing COMMAND key combo in TreeViewModel", category: "KEYBOARD-VM")
             switch keyCode {
             case 8: // C - Copy node names
+                logger.log("  🔍 Case 8: Cmd+C - Copy", category: "KEYBOARD-VM")
                 if showingNoteEditorForNode != nil {
+                    logger.log("    ❌ Note editor is showing - not handling", category: "KEYBOARD-VM")
                     return false  // Let note editor handle it
                 }
+                logger.log("    ✅ Performing copyNodeNames action", category: "KEYBOARD-VM")
                 performAction(.copyNodeNames)
                 return true
 
@@ -568,6 +579,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return true
 
             case 51: // Delete key with Cmd - Delete node
+                logger.log("  🔍 Case 51: Cmd+Delete - Delete node", category: "KEYBOARD-VM")
+                logger.log("    ✅ Performing deleteNode action", category: "KEYBOARD-VM")
                 performAction(.deleteNode)
                 return true
 
@@ -576,6 +589,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return true
 
             case 44: // Slash - Help (Cmd+/)
+                logger.log("  🔍 Case 44: Cmd+/ - Help", category: "KEYBOARD-VM")
+                logger.log("    ✅ Performing showHelp action", category: "KEYBOARD-VM")
                 performAction(.showHelp)
                 return true
 
@@ -588,11 +603,15 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return false
 
             default:
+                logger.log("  ⚠️ Unhandled Cmd+keyCode: \(keyCode)", category: "KEYBOARD-VM")
                 break
             }
+        } else {
+            logger.log("📌 Processing NON-COMMAND key in TreeViewModel", category: "KEYBOARD-VM")
         }
 
         // Handle non-command shortcuts
+        logger.log("📌 Checking non-command shortcuts", category: "KEYBOARD-VM")
         switch keyCode {
         case 3: // F - unfocus (when no command modifier)
             if !modifiers.contains(.command) {
@@ -601,15 +620,20 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
 
         case 17: // T - Create task
+            logger.log("  🔍 Case 17: T key", category: "KEYBOARD-VM")
             if !modifiers.contains(.command) {
+                logger.log("    ✅ Creating task - setting showingCreateDialog = true", category: "KEYBOARD-VM")
                 createNodeType = "task"
                 createNodeTitle = ""
                 createNodeParentId = nil
                 showingCreateDialog = true
                 return true
             }
+            logger.log("    ❌ Has Command modifier - not handling", category: "KEYBOARD-VM")
 
         case 45: // N - Create note
+            logger.log("  🔍 Case 45: N key - Create note", category: "KEYBOARD-VM")
+            logger.log("    ✅ Creating note - setting showingCreateDialog = true", category: "KEYBOARD-VM")
             createNodeType = "note"
             createNodeTitle = ""
             createNodeParentId = nil
@@ -639,43 +663,58 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return true
 
         case 126: // Arrow Up
+            logger.log("  🔍 Case 126: Arrow Up", category: "KEYBOARD-VM")
+            logger.log("    ✅ Navigating up", category: "KEYBOARD-VM")
             navigateToNode(direction: .up)
             return true
 
         case 125: // Arrow Down
+            logger.log("  🔍 Case 125: Arrow Down", category: "KEYBOARD-VM")
+            logger.log("    ✅ Navigating down", category: "KEYBOARD-VM")
             navigateToNode(direction: .down)
             return true
 
         case 123: // Arrow Left
+            logger.log("  🔍 Case 123: Arrow Left", category: "KEYBOARD-VM")
+            logger.log("    ✅ Navigating left", category: "KEYBOARD-VM")
             navigateToNode(direction: .left)
             return true
 
         case 124: // Arrow Right
+            logger.log("  🔍 Case 124: Arrow Right", category: "KEYBOARD-VM")
+            logger.log("    ✅ Navigating right", category: "KEYBOARD-VM")
             navigateToNode(direction: .right)
             return true
 
         case 53: // Escape key
+            logger.log("  🔍 Case 53: Escape key", category: "KEYBOARD-VM")
             // Handle escape in priority order
             if showingDeleteAlert {
+                logger.log("    ✅ Closing delete alert", category: "KEYBOARD-VM")
                 // Close delete alert
                 showingDeleteAlert = false
                 nodeToDelete = nil
                 return true
             } else if isEditing {
+                logger.log("    ✅ Stopping edit mode", category: "KEYBOARD-VM")
                 // Stop editing
                 isEditing = false
                 return true
             } else if focusedNodeId != nil {
+                logger.log("    ✅ Unfocusing node", category: "KEYBOARD-VM")
                 // Unfocus node
                 setFocusedNode(nil)
                 return true
             }
+            logger.log("    ❌ Nothing to escape from", category: "KEYBOARD-VM")
             return false
 
         default:
+            logger.log("  ⚠️ Unhandled keyCode: \(keyCode)", category: "KEYBOARD-VM")
             break
         }
 
+        logger.log("❌❌❌ TreeViewModel NOT HANDLING key - will cause BEEP", category: "KEYBOARD-VM")
         return false
     }
 
@@ -800,18 +839,42 @@ public class TreeViewModel: ObservableObject, Identifiable {
     private func navigateUp(from nodeId: String) {
         // Get visible nodes in tree order
         let visibleNodes = getVisibleNodes()
-        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }),
-              currentIndex > 0 else { return }
+        logger.log("  NAV-UP: From nodeId: \(nodeId)", category: "NAVIGATION")
+        logger.log("  NAV-UP: Visible nodes count: \(visibleNodes.count)", category: "NAVIGATION")
+        logger.log("  NAV-UP: Visible node IDs: \(visibleNodes.map { $0.id })", category: "NAVIGATION")
 
-        setSelectedNode(visibleNodes[currentIndex - 1].id)
+        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }) else {
+            logger.log("  NAV-UP: ❌ Current node not in visible nodes!", category: "NAVIGATION")
+            return
+        }
+        guard currentIndex > 0 else {
+            logger.log("  NAV-UP: ❌ Already at top", category: "NAVIGATION")
+            return
+        }
+
+        let newNodeId = visibleNodes[currentIndex - 1].id
+        logger.log("  NAV-UP: ✅ Moving to: \(newNodeId)", category: "NAVIGATION")
+        setSelectedNode(newNodeId)
     }
 
     private func navigateDown(from nodeId: String) {
         let visibleNodes = getVisibleNodes()
-        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }),
-              currentIndex < visibleNodes.count - 1 else { return }
+        logger.log("  NAV-DOWN: From nodeId: \(nodeId)", category: "NAVIGATION")
+        logger.log("  NAV-DOWN: Visible nodes count: \(visibleNodes.count)", category: "NAVIGATION")
+        logger.log("  NAV-DOWN: Visible node IDs: \(visibleNodes.map { $0.id })", category: "NAVIGATION")
 
-        setSelectedNode(visibleNodes[currentIndex + 1].id)
+        guard let currentIndex = visibleNodes.firstIndex(where: { $0.id == nodeId }) else {
+            logger.log("  NAV-DOWN: ❌ Current node not in visible nodes!", category: "NAVIGATION")
+            return
+        }
+        guard currentIndex < visibleNodes.count - 1 else {
+            logger.log("  NAV-DOWN: ❌ Already at bottom", category: "NAVIGATION")
+            return
+        }
+
+        let newNodeId = visibleNodes[currentIndex + 1].id
+        logger.log("  NAV-DOWN: ✅ Moving to: \(newNodeId)", category: "NAVIGATION")
+        setSelectedNode(newNodeId)
     }
 
     private func navigateLeft(from nodeId: String) {
@@ -855,9 +918,20 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
 
-        let rootNodes = focusedNodeId != nil
-            ? getChildren(of: focusedNodeId!)
-            : getRootNodes()
+        let rootNodes: [Node]
+        if let focusedId = focusedNodeId {
+            logger.log("  getVisibleNodes: In FOCUS mode - focusedId: \(focusedId)", category: "NAVIGATION")
+            // When focused, we should show the focused node AND its children
+            // Not just the children!
+            if let focusedNode = allNodes.first(where: { $0.id == focusedId }) {
+                rootNodes = [focusedNode]
+            } else {
+                rootNodes = getChildren(of: focusedId)
+            }
+        } else {
+            logger.log("  getVisibleNodes: In ROOT mode", category: "NAVIGATION")
+            rootNodes = getRootNodes()
+        }
         addVisibleNodes(nodes: rootNodes)
 
         return visibleNodes

@@ -83,7 +83,7 @@ public struct TreeView_macOS: View {
                     TreeToolbar(viewModel: viewModel)
                 }
             }
-            .sheet(isPresented: isInTabbedView ? .constant(false) : $viewModel.showingCreateDialog) {
+            .sheet(isPresented: $viewModel.showingCreateDialog) {
                 CreateNodeSheet(viewModel: viewModel)
                     .environmentObject(dataManager)
             }
