@@ -8,23 +8,11 @@ import Networking
 
 private let logger = Logger.shared
 
-private struct IsInTabbedViewKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var isInTabbedView: Bool {
-        get { self[IsInTabbedViewKey.self] }
-        set { self[IsInTabbedViewKey.self] = newValue }
-    }
-}
-
 public struct TreeView_macOS: View {
     @ObservedObject var viewModel: TreeViewModel
     @EnvironmentObject var dataManager: DataManager
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
-    @Environment(\.isInTabbedView) private var isInTabbedView
 
     public init(viewModel: TreeViewModel? = nil) {
         self.viewModel = viewModel ?? TreeViewModel()
@@ -38,11 +26,9 @@ public struct TreeView_macOS: View {
                         focusedNode: viewModel.currentFocusedNode,
                         parentChain: viewModel.currentFocusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
                         onNodeTap: { nodeId in
-                            logger.log("🎯 TreeView: Setting focusedNodeId to \(nodeId)", category: "TreeView")
                             viewModel.setFocusedNode(nodeId)
                         },
                         onExitFocus: {
-                            logger.log("🎯 TreeView: Clearing focusedNodeId", category: "TreeView")
                             viewModel.setFocusedNode(nil)
                         }
                     )
@@ -77,12 +63,8 @@ public struct TreeView_macOS: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
             }
-            .navigationTitle(isInTabbedView ? "" : (viewModel.currentFocusedNode?.title ?? "All Nodes"))
-            .toolbar {
-                if !isInTabbedView {
-                    TreeToolbar(viewModel: viewModel)
-                }
-            }
+            .navigationTitle("") // Title shown in tabs instead
+            // Toolbar is managed by TabbedTreeView
             .sheet(isPresented: $viewModel.showingCreateDialog) {
                 CreateNodeSheet(viewModel: viewModel)
                     .environmentObject(dataManager)
@@ -130,15 +112,8 @@ public struct TreeView_macOS: View {
                 viewModel.setDataManager(dataManager)
                 await viewModel.initialLoad()
 
-                // Only set initial selection if not in tabbed view and no focus/selection exists
-                if !isInTabbedView && viewModel.focusedNodeId == nil && viewModel.selectedNodeId == nil {
-                    if let firstRoot = viewModel.getRootNodes().first {
-                        logger.log("🎯 Setting initial selection to first root: \(firstRoot.id)", category: "TreeView")
-                        viewModel.setSelectedNode(firstRoot.id)
-                    }
-                } else {
-                    logger.log("⏭️ Skipping initial selection (isInTabbedView: \(isInTabbedView), focusedNodeId: \(viewModel.focusedNodeId ?? "nil"), selectedNodeId: \(viewModel.selectedNodeId ?? "nil"))", category: "TreeView")
-                }
+                // Skip initial selection - let tabs manage their own selection
+                // Skip initial selection - let tabs manage their own selection
             }
         }
     }

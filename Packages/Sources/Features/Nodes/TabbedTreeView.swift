@@ -145,7 +145,6 @@ public struct TabbedTreeView: View {
         if let currentTab = currentTab {
             TreeView_macOS(viewModel: currentTab.viewModel)
                 .environmentObject(dataManager)
-                .environment(\.isInTabbedView, true)
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
                     saveState()
                 }
@@ -251,43 +250,19 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            logger.log("🎹 KEYBOARD EVENT RECEIVED:", category: "KEYBOARD")
-            logger.log("  - keyCode: \(event.keyCode)", category: "KEYBOARD")
-            logger.log("  - characters: '\(event.characters ?? "nil")'", category: "KEYBOARD")
-            logger.log("  - modifiers: \(event.modifierFlags.rawValue)", category: "KEYBOARD")
-            logger.log("  - Cmd: \(event.modifierFlags.contains(.command))", category: "KEYBOARD")
-            logger.log("  - Shift: \(event.modifierFlags.contains(.shift))", category: "KEYBOARD")
-            logger.log("  - Option: \(event.modifierFlags.contains(.option))", category: "KEYBOARD")
-            logger.log("  - Control: \(event.modifierFlags.contains(.control))", category: "KEYBOARD")
-
             guard let currentTab = self.currentTab else {
-                logger.log("❌ NO CURRENT TAB - returning event", category: "KEYBOARD")
                 return event
             }
             let viewModel = currentTab.viewModel
-            logger.log("✅ Current tab: '\(currentTab.title)'", category: "KEYBOARD")
 
             // Don't process if text field has focus
             if let firstResponder = NSApp.keyWindow?.firstResponder {
-                logger.log("🔍 First responder type: \(type(of: firstResponder))", category: "KEYBOARD")
                 if firstResponder is NSTextView || firstResponder is NSTextField {
-                    logger.log("❌ TEXT FIELD HAS FOCUS - returning event", category: "KEYBOARD")
                     return event
                 }
             }
 
             // Don't process if ANY modal is showing
-            logger.log("🔍 Modal states:", category: "KEYBOARD")
-            logger.log("  - showingNewTabDialog: \(self.showingNewTabDialog)", category: "KEYBOARD")
-            logger.log("  - editingTabId: \(self.editingTabId != nil)", category: "KEYBOARD")
-            logger.log("  - showingDeleteAlert: \(viewModel.showingDeleteAlert)", category: "KEYBOARD")
-            logger.log("  - showingCreateDialog: \(viewModel.showingCreateDialog)", category: "KEYBOARD")
-            logger.log("  - showingDetailsForNode: \(viewModel.showingDetailsForNode != nil)", category: "KEYBOARD")
-            logger.log("  - showingTagPickerForNode: \(viewModel.showingTagPickerForNode != nil)", category: "KEYBOARD")
-            logger.log("  - showingNoteEditorForNode: \(viewModel.showingNoteEditorForNode != nil)", category: "KEYBOARD")
-            logger.log("  - showingHelpWindow: \(viewModel.showingHelpWindow)", category: "KEYBOARD")
-            logger.log("  - isEditing: \(viewModel.isEditing)", category: "KEYBOARD")
-
             if self.showingNewTabDialog ||
                self.editingTabId != nil ||
                viewModel.showingDeleteAlert ||
@@ -297,7 +272,6 @@ public struct TabbedTreeView: View {
                viewModel.showingNoteEditorForNode != nil ||
                viewModel.showingHelpWindow ||
                viewModel.isEditing {
-                logger.log("❌ MODAL IS SHOWING - returning event", category: "KEYBOARD")
                 return event
             }
 
@@ -495,64 +469,6 @@ public struct TabbedTreeView: View {
         }
     }
 
-    private func copyNodeNamesToClipboard(viewModel: TreeViewModel) {
-        logger.log("📋 Copying node names to clipboard", category: "TabbedTreeView")
-
-        var textToCopy = ""
-
-        // Get the nodes to copy based on focus state
-        if let focusedId = viewModel.focusedNodeId {
-            // In focus mode - copy the focused node and its direct children
-            if let focusedNode = viewModel.allNodes.first(where: { $0.id == focusedId }) {
-                textToCopy = focusedNode.title + "\n"
-
-                // Get direct children only (not nested)
-                let children = viewModel.getChildren(of: focusedId)
-                for child in children {
-                    textToCopy += "- " + child.title + "\n"
-                }
-            }
-        } else {
-            // Not in focus mode - copy all root nodes
-            textToCopy = "All Nodes\n"
-            let rootNodes = viewModel.getRootNodes()
-            for node in rootNodes {
-                textToCopy += "- " + node.title + "\n"
-            }
-        }
-
-        // Copy to clipboard
-        if !textToCopy.isEmpty {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(textToCopy, forType: .string)
-            logger.log("✅ Copied \(textToCopy.components(separatedBy: "\n").count - 1) node names to clipboard", category: "TabbedTreeView")
-        }
-    }
-
-    private func handleQuickAddToDefaultFolder(viewModel: TreeViewModel) async {
-        // Get the default folder ID
-        guard let defaultNodeId = await dataManager.getDefaultFolder() else {
-            logger.log("⚠️ No default folder set", level: .warning, category: "TabbedTreeView")
-            // Could show an alert here if desired
-            return
-        }
-
-        // Find the default folder in the current nodes
-        guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
-            logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TabbedTreeView")
-            return
-        }
-
-        logger.log("✅ Quick add to default folder: \(defaultFolder.title)", category: "TabbedTreeView")
-
-        // Set up for creating a task in the default folder
-        viewModel.createNodeType = "task"
-        viewModel.createNodeTitle = ""
-        viewModel.createNodeParentId = defaultNodeId  // Set the explicit parent ID
-
-        // Show the create dialog
-        viewModel.showingCreateDialog = true
-    }
 
     private func setupStateChangeObservers() {
         // Remove any existing observers
@@ -648,6 +564,7 @@ struct TabBarView: View {
                             tab: tab,
                             isSelected: tab.id == selectedTabId,
                             isEditing: editingTabId == tab.id,
+                            canClose: tabs.count > 1,
                             onSelect: { selectedTabId = tab.id },
                             onClose: { onCloseTab(tab.id) },
                             onStartEdit: { editingTabId = tab.id },
@@ -674,6 +591,7 @@ struct TabBarItem: View {
     @ObservedObject var tab: TabModel
     let isSelected: Bool
     let isEditing: Bool
+    let canClose: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
     let onStartEdit: () -> Void
@@ -717,7 +635,7 @@ struct TabBarItem: View {
                     .frame(maxWidth: 120)
             }
 
-            if (isSelected || isHovering) && !isEditing {
+            if (isSelected || isHovering) && !isEditing && canClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .medium))
