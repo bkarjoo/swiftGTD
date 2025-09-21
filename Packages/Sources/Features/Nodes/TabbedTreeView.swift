@@ -102,15 +102,15 @@ public struct TabbedTreeView: View {
             // Cancel focus subscriptions
             focusSubscriptions.values.forEach { $0.cancel() }
             focusSubscriptions.removeAll()
-            // Save immediately on disappear
-            saveStateImmediately()
+            // Save on disappear
+            self.saveStateNow()
         }
         .onChange(of: scenePhase) { newPhase in
             switch newPhase {
             case .background, .inactive:
                 // Save immediately when app goes to background or becomes inactive
                 logger.log("🔄 Scene phase changed to \(String(describing: newPhase)), saving state", category: "TabbedTreeView")
-                saveStateImmediately()
+                self.saveStateNow()
             case .active:
                 // App is active, normal operation
                 break
@@ -129,7 +129,8 @@ public struct TabbedTreeView: View {
                 selectedTabId: $selectedTabId,
                 editingTabId: $editingTabId,
                 onNewTab: { addNewTab() },
-                onCloseTab: { closeTab($0) }
+                onCloseTab: { closeTab($0) },
+                onTabChange: { saveStateNow() }
             )
             .frame(height: 36)
             .background(Color(NSColor.controlBackgroundColor))
@@ -146,7 +147,7 @@ public struct TabbedTreeView: View {
             TreeView_macOS(viewModel: currentTab.viewModel)
                 .environmentObject(dataManager)
                 .onChange(of: currentTab.viewModel.focusedNodeId) { _ in
-                    saveState()
+                    updateState()
                 }
                 .id(currentTab.id)
         }
@@ -218,7 +219,8 @@ public struct TabbedTreeView: View {
         let newTab = TabModel(title: tabName)
         tabs.append(newTab)
         selectedTabId = newTab.id
-        saveState()
+        updateState()
+        saveStateNow() // Save on tab creation
         setupFocusSubscriptions()
     }
 
@@ -238,7 +240,8 @@ public struct TabbedTreeView: View {
                     selectedTabId = firstTab.id
                 }
             }
-            saveState()
+            updateState()
+            saveStateNow() // Save on tab close
             setupFocusSubscriptions()
         }
     }
@@ -370,8 +373,8 @@ public struct TabbedTreeView: View {
 
     // MARK: - State Persistence
 
-    private func saveState() {
-        logger.log("📝 Queueing tab state save", category: "TabbedTreeView")
+    private func updateState() {
+        logger.log("📝 Updating in-memory state", category: "TabbedTreeView")
 
         let tabStates = tabs.map { tab in
             let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId
@@ -384,27 +387,26 @@ public struct TabbedTreeView: View {
         }
 
         let state = UIState(tabs: tabStates)
-        stateManager.saveState(state) // This is now debounced
+        stateManager.updateState(state) // Update in-memory state
     }
 
-    private func saveStateImmediately() {
-        logger.log("💾 Immediate tab state save", category: "TabbedTreeView")
+    private func saveStateNow() {
+        logger.log("💾 Saving state to disk now", category: "TabbedTreeView")
 
         let tabStates = tabs.map { tab in
-            let focusedId = tab.viewModel.focusedNodeId
-            let selectedId = tab.viewModel.selectedNodeId
-            let savedId = focusedId ?? selectedId
-            logger.log("  Tab '\(tab.title)': focused=\(focusedId ?? "nil"), selected=\(selectedId ?? "nil"), saving=\(savedId ?? "nil")", category: "TabbedTreeView")
+            let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId
             return UIState.TabState(
                 id: tab.id,
                 title: tab.title,
-                focusedNodeId: savedId
+                focusedNodeId: focusedId
             )
         }
 
         let state = UIState(tabs: tabStates)
-        stateManager.saveStateImmediately(state)
+        stateManager.updateState(state) // Update in-memory
+        stateManager.saveStateNow() // Force save to disk
     }
+
 
     private func restoreState() {
         logger.log("📂 Restoring tab state", category: "TabbedTreeView")
@@ -483,7 +485,7 @@ public struct TabbedTreeView: View {
             object: nil,
             queue: .main
         ) { _ in
-            self.saveState()
+            self.updateState()
         }
         notificationObservers.append(titleObserver)
 
@@ -494,7 +496,7 @@ public struct TabbedTreeView: View {
             queue: .main
         ) { _ in
             self.logger.log("🛑 App terminating, saving state immediately", category: "TabbedTreeView")
-            self.saveStateImmediately()
+            self.saveStateNow()
         }
         notificationObservers.append(terminationObserver)
 
@@ -504,8 +506,8 @@ public struct TabbedTreeView: View {
             object: nil,
             queue: .main
         ) { _ in
-            self.logger.log("🧭 FocusChanged notification received — saving state", category: "TabbedTreeView")
-            self.saveState()
+            self.logger.log("🧭 FocusChanged notification received — updating state", category: "TabbedTreeView")
+            self.updateState()
         }
         notificationObservers.append(focusObserver)
     }
@@ -526,15 +528,15 @@ public struct TabbedTreeView: View {
             let focusCancellable = tab.viewModel.$focusedNodeId
                 .removeDuplicates { $0 == $1 }
                 .sink { _ in
-                    logger.log("🧭 Focus changed in tab '\(tab.title)' — saving immediately", category: "TabbedTreeView")
-                    saveStateImmediately()
+                    logger.log("🧭 Focus changed in tab '\(tab.title)' — updating state", category: "TabbedTreeView")
+                    updateState()
                 }
 
             let selectionCancellable = tab.viewModel.$selectedNodeId
                 .removeDuplicates { $0 == $1 }
                 .sink { _ in
-                    logger.log("🎯 Selection changed in tab '\(tab.title)' — saving immediately", category: "TabbedTreeView")
-                    saveStateImmediately()
+                    logger.log("🎯 Selection changed in tab '\(tab.title)' — updating state", category: "TabbedTreeView")
+                    updateState()
                 }
 
             // Combine both subscriptions
@@ -554,6 +556,7 @@ struct TabBarView: View {
     @Binding var editingTabId: UUID?
     let onNewTab: () -> Void
     let onCloseTab: (UUID) -> Void
+    let onTabChange: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -565,7 +568,12 @@ struct TabBarView: View {
                             isSelected: tab.id == selectedTabId,
                             isEditing: editingTabId == tab.id,
                             canClose: tabs.count > 1,
-                            onSelect: { selectedTabId = tab.id },
+                            onSelect: {
+                                if selectedTabId != tab.id {
+                                    selectedTabId = tab.id
+                                    onTabChange() // Save on tab change
+                                }
+                            },
                             onClose: { onCloseTab(tab.id) },
                             onStartEdit: { editingTabId = tab.id },
                             onEndEdit: { editingTabId = nil }

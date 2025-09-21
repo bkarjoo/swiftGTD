@@ -524,6 +524,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     // MARK: - UI Intent Methods
 
     /// Centralized keyboard event handling
+    #if os(macOS)
     func handleKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
         logger.log("🎯 TreeViewModel.handleKeyPress CALLED", category: "KEYBOARD-VM")
         logger.log("  - keyCode: \(keyCode)", category: "KEYBOARD-VM")
@@ -717,6 +718,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         logger.log("❌❌❌ TreeViewModel NOT HANDLING key - will cause BEEP", category: "KEYBOARD-VM")
         return false
     }
+    #endif
 
     /// Node action types
     enum NodeAction {
