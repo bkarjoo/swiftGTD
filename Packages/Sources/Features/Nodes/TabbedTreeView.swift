@@ -24,14 +24,8 @@ public class TabModel: ObservableObject, Identifiable {
         self.viewModel = TreeViewModel()
         self.viewModel.focusedNodeId = focusedNodeId
 
-        // Watch for focus changes and notify
-        self.viewModel.$focusedNodeId
-            .sink { _ in
-                NotificationCenter.default.post(name: .tabStateChanged, object: nil)
-            }
-            .store(in: &cancellables)
-
-        // Forward viewModel changes to trigger view updates
+        // Only forward viewModel changes to trigger view updates
+        // Focus/selection subscriptions are handled at TabbedTreeView level for active tab only
         self.viewModel.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -56,7 +50,7 @@ public struct TabbedTreeView: View {
     @State private var keyEventMonitor: Any?
     @State private var hasRestoredState = false
     @State private var notificationObservers: [NSObjectProtocol] = []
-    @State private var focusSubscriptions: [UUID: AnyCancellable] = [:]
+    @State private var activeTabSubscription: AnyCancellable?
     private let stateManager = UIStateManager.shared
     private let logger = Logger.shared
 
@@ -87,7 +81,7 @@ public struct TabbedTreeView: View {
             }
             setupKeyEventMonitor()
             setupStateChangeObservers()
-            setupFocusSubscriptions()
+            setupActiveTabSubscription()
         }
         .onDisappear {
             if let monitor = keyEventMonitor {
@@ -99,9 +93,9 @@ public struct TabbedTreeView: View {
                 NotificationCenter.default.removeObserver(observer)
             }
             notificationObservers.removeAll()
-            // Cancel focus subscriptions
-            focusSubscriptions.values.forEach { $0.cancel() }
-            focusSubscriptions.removeAll()
+            // Cancel active tab subscription
+            activeTabSubscription?.cancel()
+            activeTabSubscription = nil
             // Save on disappear
             self.saveStateNow()
         }
@@ -130,7 +124,10 @@ public struct TabbedTreeView: View {
                 editingTabId: $editingTabId,
                 onNewTab: { addNewTab() },
                 onCloseTab: { closeTab($0) },
-                onTabChange: { saveStateNow() }
+                onTabChange: {
+                    setupActiveTabSubscription()
+                    saveStateNow()
+                }
             )
             .frame(height: 36)
             .background(Color(NSColor.controlBackgroundColor))
@@ -221,7 +218,7 @@ public struct TabbedTreeView: View {
         selectedTabId = newTab.id
         updateState()
         saveStateNow() // Save on tab creation
-        setupFocusSubscriptions()
+        setupActiveTabSubscription()
     }
 
     private func closeTab(_ tabId: UUID) {
@@ -242,7 +239,7 @@ public struct TabbedTreeView: View {
             }
             updateState()
             saveStateNow() // Save on tab close
-            setupFocusSubscriptions()
+            setupActiveTabSubscription()
         }
     }
 
@@ -306,46 +303,64 @@ public struct TabbedTreeView: View {
                 case 18: // Cmd+1
                     if tabs.count >= 1 {
                         selectedTabId = tabs[0].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 19: // Cmd+2
                     if tabs.count >= 2 {
                         selectedTabId = tabs[1].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 20: // Cmd+3
                     if tabs.count >= 3 {
                         selectedTabId = tabs[2].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 21: // Cmd+4
                     if tabs.count >= 4 {
                         selectedTabId = tabs[3].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 23: // Cmd+5
                     if tabs.count >= 5 {
                         selectedTabId = tabs[4].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 22: // Cmd+6
                     if tabs.count >= 6 {
                         selectedTabId = tabs[5].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 26: // Cmd+7
                     if tabs.count >= 7 {
                         selectedTabId = tabs[6].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 28: // Cmd+8
                     if tabs.count >= 8 {
                         selectedTabId = tabs[7].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
                 case 25: // Cmd+9
                     if tabs.count >= 9 {
                         selectedTabId = tabs[8].id
+                        setupActiveTabSubscription()
+                        saveStateNow() // Save on tab change
                         return nil
                     }
 
@@ -512,40 +527,33 @@ public struct TabbedTreeView: View {
         notificationObservers.append(focusObserver)
     }
 
-    private func setupFocusSubscriptions() {
-        // Remove subscriptions for tabs that no longer exist
-        let currentIds = Set(tabs.map { $0.id })
-        for (id, sub) in focusSubscriptions where !currentIds.contains(id) {
-            sub.cancel()
-            focusSubscriptions.removeValue(forKey: id)
-        }
+    private func setupActiveTabSubscription() {
+        // Cancel any existing subscription
+        activeTabSubscription?.cancel()
+        activeTabSubscription = nil
 
-        // Add subscriptions for any new tabs
-        for tab in tabs {
-            guard focusSubscriptions[tab.id] == nil else { continue }
+        // Subscribe only to the currently active tab
+        guard let activeTab = currentTab else { return }
 
-            // Watch BOTH focusedNodeId and selectedNodeId changes
-            let focusCancellable = tab.viewModel.$focusedNodeId
-                .removeDuplicates { $0 == $1 }
-                .sink { _ in
-                    logger.log("🧭 Focus changed in tab '\(tab.title)' — updating state", category: "TabbedTreeView")
-                    updateState()
-                }
-
-            let selectionCancellable = tab.viewModel.$selectedNodeId
-                .removeDuplicates { $0 == $1 }
-                .sink { _ in
-                    logger.log("🎯 Selection changed in tab '\(tab.title)' — updating state", category: "TabbedTreeView")
-                    updateState()
-                }
-
-            // Combine both subscriptions
-            let combined = AnyCancellable {
-                focusCancellable.cancel()
-                selectionCancellable.cancel()
+        // Watch BOTH focusedNodeId and selectedNodeId changes for active tab only
+        let focusCancellable = activeTab.viewModel.$focusedNodeId
+            .removeDuplicates { $0 == $1 }
+            .sink { _ in
+                logger.log("🧭 Focus changed in active tab '\(activeTab.title)' — updating state", category: "TabbedTreeView")
+                updateState()
             }
 
-            focusSubscriptions[tab.id] = combined
+        let selectionCancellable = activeTab.viewModel.$selectedNodeId
+            .removeDuplicates { $0 == $1 }
+            .sink { _ in
+                logger.log("🎯 Selection changed in active tab '\(activeTab.title)' — updating state", category: "TabbedTreeView")
+                updateState()
+            }
+
+        // Combine both subscriptions
+        activeTabSubscription = AnyCancellable {
+            focusCancellable.cancel()
+            selectionCancellable.cancel()
         }
     }
 }
