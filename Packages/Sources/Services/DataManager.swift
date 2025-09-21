@@ -732,8 +732,14 @@ public class DataManager: ObservableObject {
             logger.log("   New node ID: \(newNode.id)", category: "DataManager")
             logger.log("   New node title: \(newNode.title)", category: "DataManager")
 
-            // Refresh nodes to include the new one
-            await syncAllData()
+            // Refresh only the parent node to include the new child
+            // This is more efficient than a full sync
+            if let parentId = parentId {
+                await refreshNode(parentId)
+            } else {
+                // For root nodes, we need to sync all to get the new root
+                await syncAllData()
+            }
 
             return newNode
         } catch {
@@ -755,25 +761,47 @@ public class DataManager: ObservableObject {
         let currentChildren = nodes.filter { $0.parentId == nodeId }
 
         do {
-            // Fetch the updated node
+            // Fetch the updated node and its direct children
             let updatedNode = try await api.getNode(id: nodeId)
-
-            // Fetch the node's children to maintain consistency
             let children = try await api.getNodes(parentId: nodeId)
             logger.log("📊 Fetched \(children.count) children for node: \(updatedNode.title)", category: "DataManager")
 
-            // Begin update - remove old children first
-            let oldChildrenIds = nodes
-                .filter { $0.parentId == nodeId }
-                .map { $0.id }
+            // Snapshot of previous direct children
+            let oldChildrenIds = Set(nodes.filter { $0.parentId == nodeId }.map { $0.id })
+            let newChildrenIds = Set(children.map { $0.id })
 
-            // Remove stale children that no longer exist
-            nodes.removeAll { node in
-                oldChildrenIds.contains(node.id)
+            // Determine which direct children were removed
+            let removedDirectChildren = oldChildrenIds.subtracting(newChildrenIds)
+
+            // Helper: collect all descendant IDs for a set of parents (BFS)
+            func collectDescendants(of parents: Set<String>) -> Set<String> {
+                var toVisit = Array(parents)
+                var descendants = Set<String>()
+                // Index by parentId for O(1) child lookups
+                let childrenByParent = Dictionary(grouping: nodes, by: { $0.parentId ?? "" })
+
+                while let current = toVisit.popLast() {
+                    if let kids = childrenByParent[current] {
+                        for kid in kids {
+                            if descendants.insert(kid.id).inserted {
+                                toVisit.append(kid.id)
+                            }
+                        }
+                    }
+                }
+                return descendants
             }
-            logger.log("🗑️ Removed \(oldChildrenIds.count) old children", category: "DataManager")
 
-            // Update or add the main node
+            // Build final removal set: removed direct children + their entire subtrees
+            let removedSubtree = collectDescendants(of: removedDirectChildren)
+            let idsToRemove = removedDirectChildren.union(removedSubtree)
+
+            // 1) Remove only removed children and their descendants
+            let removedCountBefore = nodes.count
+            nodes.removeAll { idsToRemove.contains($0.id) }
+            logger.log("🗑️ Removed \(removedCountBefore - nodes.count) nodes (removed children + descendants)", category: "DataManager")
+
+            // 2) Upsert the main node
             if let index = nodes.firstIndex(where: { $0.id == nodeId }) {
                 nodes[index] = updatedNode
                 logger.log("✅ Node updated: \(updatedNode.title)", category: "DataManager")
@@ -782,9 +810,15 @@ public class DataManager: ObservableObject {
                 logger.log("✅ Node added: \(updatedNode.title)", category: "DataManager")
             }
 
-            // Add all current children
-            nodes.append(contentsOf: children)
-            logger.log("✅ Added \(children.count) children to maintain consistency", category: "DataManager")
+            // 3) Upsert direct children returned by API (don't touch their subtrees)
+            for child in children {
+                if let idx = nodes.firstIndex(where: { $0.id == child.id }) {
+                    nodes[idx] = child
+                } else {
+                    nodes.append(child)
+                }
+            }
+            logger.log("✅ Upserted \(children.count) direct children for node: \(updatedNode.id)", category: "DataManager")
 
         } catch {
             logger.error("❌ Failed to refresh node: \(error)", category: "DataManager")
