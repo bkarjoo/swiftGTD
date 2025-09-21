@@ -263,9 +263,7 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            logger.log("🎯 TabbedTreeView keyEvent: keyCode=\(event.keyCode), modifiers=\(event.modifierFlags.rawValue)", category: "TabbedTreeView")
             guard let currentTab = self.currentTab else {
-                logger.log("❌ No current tab", category: "TabbedTreeView")
                 return event
             }
             let viewModel = currentTab.viewModel
@@ -363,13 +361,9 @@ public struct TabbedTreeView: View {
 
             // MARK: - All Node Operations - Delegate to TreeViewModel
             // This includes arrow keys, creation shortcuts, etc.
-            logger.log("🔄 Delegating to TreeViewModel.handleKeyPress", category: "TabbedTreeView")
             if viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers) {
-                logger.log("✅ TreeViewModel handled the key", category: "TabbedTreeView")
                 return nil
             }
-
-            logger.log("❌ TreeViewModel did NOT handle the key", category: "TabbedTreeView")
             return event
         }
     }
