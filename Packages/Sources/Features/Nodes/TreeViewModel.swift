@@ -51,7 +51,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] nodes in
                 guard let self = self else { return }
-                logger.log("📡 DataManager nodes changed, updating TreeViewModel", category: "TreeViewModel")
                 self.updateNodesFromDataManager(nodes)
             }
             .store(in: &cancellables)
@@ -102,7 +101,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
                node.nodeType == "smart_folder",
                !children.isEmpty {
                 smartFolderResults[nodeId] = children
-                logger.log("🧩 Preserving smart folder results for: \(node.title) (\(children.count) nodes)", category: "TreeViewModel")
             }
         }
 
@@ -139,8 +137,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Validate that allNodes and nodeChildren are consistent
     private func validateNodeConsistency() {
-        logger.log("🔍 Validating node consistency...", category: "TreeViewModel")
-
         var issues: [String] = []
 
         // Check 1: All children in nodeChildren exist in allNodes
@@ -175,9 +171,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
 
-        if issues.isEmpty {
-            logger.log("✅ Node consistency check passed", category: "TreeViewModel")
-        } else {
+        // Only log if issues found
+        if !issues.isEmpty {
             logger.error("❌ Node consistency issues found:", category: "TreeViewModel")
             for issue in issues {
                 logger.error("  - \(issue)", category: "TreeViewModel")
@@ -188,11 +183,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
     /// Initial load of nodes - only runs once per view lifecycle
     func initialLoad() async {
         guard !didLoad else {
-            logger.log("⏩ Skipping initialLoad - already loaded", category: "TreeViewModel")
             return
         }
 
-        logger.log("🔵 TreeViewModel.initialLoad() called - first time load", category: "TreeViewModel")
+        logger.log("🔄 TreeViewModel initial load started", category: "TreeViewModel")
         isLoading = true
         didLoad = true
 
@@ -237,11 +231,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return // Early return, no error throw needed as this is caught in the do-catch
             }
 
-            logger.log("✅ DataManager found, calling syncAllData()", category: "TreeViewModel")
             // Use syncAllData to load from cache when offline
             await dataManager.syncAllData()
             nodes = dataManager.nodes
-            logger.log("📊 Received \(nodes.count) nodes from DataManager", category: "TreeViewModel")
 
             await MainActor.run {
                 self.updateNodesFromDataManager(nodes)
@@ -270,9 +262,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             logger.log("❌ No node to delete or no dataManager", category: "TreeViewModel")
             return
         }
-        logger.log("📞 Deleting node: \(node.id) - \(node.title)", category: "TreeViewModel")
-
-        logger.log("📞 Confirming delete for node: \(node.id) - \(node.title)", category: "TreeViewModel")
 
         // Before deletion, find the next node to select
         var nextSelectionId: String? = nil
@@ -293,17 +282,12 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 // Try to select previous sibling
                 if currentIndex > 0 {
                     nextSelectionId = siblings[currentIndex - 1].id
-                    logger.log("📍 Will select previous sibling: \(siblings[currentIndex - 1].title)", category: "TreeViewModel")
                 }
                 // If no previous, try next sibling
                 else if currentIndex < siblings.count - 1 {
                     nextSelectionId = siblings[currentIndex + 1].id
-                    logger.log("📍 Will select next sibling: \(siblings[currentIndex + 1].title)", category: "TreeViewModel")
                 }
                 // No siblings, selection will be nil
-                else {
-                    logger.log("📍 No siblings to select after deletion", category: "TreeViewModel")
-                }
             }
         }
 
@@ -331,7 +315,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let parentId = node.parentId {
             await dataManager.refreshNode(parentId)
             // DataManager handles error recovery by preserving consistency
-            logger.log("✅ Parent node refreshed after deletion", category: "TreeViewModel")
         }
 
         // Handle UI-specific state cleanup and selection
@@ -352,7 +335,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             self.validateNodeConsistency()
             #endif
 
-            logger.log("✅ Delete completed, selected node: \(nextSelectionId ?? "none")", category: "TreeViewModel")
         }
     }
     
@@ -385,7 +367,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        logger.log("📝 Updating node title - id: \(nodeId), newTitle: \(newTitle)", category: "TreeViewModel")
 
         // Create update object with new title
         let update = NodeUpdate(
@@ -409,8 +390,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
     // MARK: - Drag and Drop
 
     func performReorder(draggedNode: Node, targetNode: Node, position: DropPosition, message: String) async {
-        // Don't show alert anymore, just log
-        logger.log("🎯 Reordering nodes: \(message)", category: "TreeViewModel")
 
         // Get all siblings
         let siblings: [Node]
@@ -454,7 +433,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             let newSortOrder = (index + 1) * 100
             if node.sortOrder != newSortOrder {
                 updates.append((nodeId: node.id, sortOrder: newSortOrder))
-                logger.log("📝 Node '\(node.title)' will get sort order \(newSortOrder)", category: "TreeViewModel")
             }
         }
 
@@ -485,11 +463,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let parentId = draggedNode.parentId {
             await dataManager.refreshNode(parentId)
             // DataManager handles error recovery by preserving consistency
-            logger.log("✅ Parent node refreshed after reordering", category: "TreeViewModel")
         } else {
             // For root nodes, refresh all root nodes
             await dataManager.syncAllData()
-            logger.log("✅ Synced all data after root node reordering", category: "TreeViewModel")
         }
 
         await MainActor.run {
@@ -504,7 +480,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
     func showDropAlert(message: String) {
         dropAlertMessage = message
         showingDropAlert = true
-        logger.log("🎯 Showing drop alert: \(dropAlertMessage)", category: "TreeViewModel")
     }
 
     func createNode(type: String, title: String, parentId: String?) async {
@@ -513,7 +488,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        logger.log("📞 Creating node - type: \(type), title: \(title), parentId: \(parentId ?? "nil")", category: "TreeViewModel")
 
         if let createdNode = await dataManager.createNode(
             title: title,
@@ -529,7 +503,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             if let parentId = createdNode.parentId {
                 await dataManager.refreshNode(parentId)
                 // DataManager handles error recovery by preserving consistency
-                logger.log("✅ Parent node refreshed after node creation", category: "TreeViewModel")
             }
 
             await MainActor.run {
@@ -698,8 +671,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        logger.log("🎯 Performing action \(action) on node: \(node.title)", category: "TreeViewModel")
-
         switch action {
         case .copyNodeNames:
             copyNodeNamesToClipboard()
@@ -867,7 +838,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let nodeId = nodeId {
             expandedNodes.insert(nodeId) // Always expand when focusing
         }
-        logger.log("🎯 Focused node set to: \(nodeId ?? "nil")", category: "TreeViewModel")
         NotificationCenter.default.post(name: .focusChanged, object: nil)
     }
 
@@ -892,7 +862,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Copy node hierarchy to clipboard
     private func copyNodeNamesToClipboard() {
-        logger.log("📋 Copying node names to clipboard", category: "TreeViewModel")
 
         var textToCopy = ""
         func addNodeToText(_ node: Node, level: Int) {
@@ -918,7 +887,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             #if os(macOS)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(textToCopy, forType: .string)
-            logger.log("✅ Copied node hierarchy to clipboard", category: "TreeViewModel")
             #endif
         }
     }
@@ -927,7 +895,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Create a quick task in the default folder
     func createQuickTaskInDefaultFolder() async {
-        logger.log("📞 Creating quick task in default folder", category: "TreeViewModel")
 
         guard let dataManager = dataManager else {
             logger.error("❌ No DataManager available", category: "TreeViewModel")
@@ -948,7 +915,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             type: "task",
             parentId: defaultNodeId
         ) {
-            logger.log("✅ Created quick task: \(newNode.title) in default folder", category: "TreeViewModel")
 
             // Expand the default folder to show the new task
             expandedNodes.insert(defaultNodeId)
@@ -961,7 +927,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
     // MARK: - Smart Folder Execution
 
     func executeSmartFolder(_ node: Node) async {
-        logger.log("📞 Executing smart folder: \(node.title)", category: "TreeViewModel")
 
         guard let dataManager = dataManager else {
             logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
@@ -972,13 +937,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         await MainActor.run {
             if !resultNodes.isEmpty {
-                logger.log("📝 Updating children for smart folder with \(resultNodes.count) nodes", category: "TreeViewModel")
                 self.nodeChildren[node.id] = resultNodes
                 // Expand the smart folder to show results
                 self.expandedNodes.insert(node.id)
-                logger.log("✅ UI updated with smart folder results", category: "TreeViewModel")
             } else {
-                logger.log("⚠️ Smart folder returned no results", category: "TreeViewModel")
                 // Clear any previous results
                 self.nodeChildren[node.id] = []
                 // Keep it expanded to show "no results" state
@@ -995,7 +957,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
     // MARK: - Template Instantiation
 
     func instantiateTemplate(_ template: Node) async {
-        logger.log("📞 Instantiating template: \(template.title)", category: "TreeViewModel")
 
         guard let dataManager = dataManager else {
             logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
@@ -1010,7 +971,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
             templateId: template.id,
             parentId: targetNodeId  // Pass the target node to DataManager
         ) {
-            logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeViewModel")
 
             // Retry logic: Wait for node to appear in local data (eventual consistency)
             var retryCount = 0
@@ -1019,12 +979,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
             while retryCount < maxRetries {
                 if allNodes.contains(where: { $0.id == newNode.id }) {
-                    logger.log("✅ New node found in local data after \(retryCount) retries", category: "TreeViewModel")
                     break
                 }
 
                 retryCount += 1
-                logger.log("⏳ Waiting for node to appear (retry \(retryCount)/\(maxRetries))...", category: "TreeViewModel")
 
                 // Wait briefly for data to sync
                 try? await Task.sleep(nanoseconds: retryDelay)
@@ -1033,7 +991,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 if let targetId = targetNodeId {
                     await dataManager.refreshNode(targetId)
                     // DataManager handles error recovery by preserving consistency
-                    logger.log("📊 Refreshed target node during retry \(retryCount)", category: "TreeViewModel")
                 }
             }
 

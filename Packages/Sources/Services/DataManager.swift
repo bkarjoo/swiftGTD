@@ -139,8 +139,7 @@ public class DataManager: ObservableObject {
             }
         } else {
             // Offline - create locally and queue for sync
-            logger.log("📴 Offline - creating node locally", category: "DataManager")
-            
+
             // Generate a temporary ID with clear prefix
             let tempId = "temp-\(UUID().uuidString)"
             
@@ -242,7 +241,6 @@ public class DataManager: ObservableObject {
             }
         } else {
             // Offline - queue the update operation
-            logger.log("📵 Offline - queueing update operation", category: "DataManager")
 
             // Queue the update operation
             await offlineQueue.queueNodeUpdate(nodeId: nodeId, update: update)
@@ -316,15 +314,13 @@ public class DataManager: ObservableObject {
             }
         } else {
             // Offline - delete locally and queue for sync
-            logger.log("📴 Offline - deleting node locally", category: "DataManager")
-            
+
             // Queue for sync (unless it's a temp node that was created offline)
             if !node.id.hasPrefix("temp-") {
                 // This is a real server node, queue the deletion
                 await offlineQueue.queueDelete(nodeId: node.id, title: node.title)
             } else {
                 // This was created offline - remove it from create queue instead
-                logger.log("🗑️ Removing offline-created node from queue", category: "DataManager")
                 await offlineQueue.removeCreateOperation(nodeId: node.id)
             }
             
@@ -353,26 +349,19 @@ public class DataManager: ObservableObject {
     
     /// Perform a full sync of all user data
     public func syncAllData() async {
-        logger.log("🔄 DataManager.syncAllData() called", category: "DataManager")
-        logger.log("📊 Current state: isConnected=\(networkMonitor.isConnected), nodes.count=\(nodes.count)", category: "DataManager")
         isLoading = true
         errorMessage = nil
-        
+
         if networkMonitor.isConnected {
-            logger.log("🌐 Network is CONNECTED - will fetch from API", category: "DataManager")
             // Online - fetch from API and cache
             do {
                 // Fetch ALL data
-                logger.log("📡 Calling api.getAllNodes() and api.getTags()", category: "DataManager")
-                
                 async let fetchedNodes = api.getAllNodes()
                 async let fetchedTags = api.getTags()
                 // Rules will be added when API supports them
-                
+
                 let (allNodes, allTags) = try await (fetchedNodes, fetchedTags)
-                
-                logger.log("✅ API returned: \(allNodes.count) nodes, \(allTags.count) tags", category: "DataManager")
-                
+
                 // SAFETY CHECK: Don't wipe data if server returns empty when we had data
                 if allNodes.isEmpty && !nodes.isEmpty {
                     logger.log("⚠️ Server returned empty nodes but we have \(nodes.count) cached - keeping cache", level: .warning, category: "DataManager")
@@ -381,14 +370,12 @@ public class DataManager: ObservableObject {
                     isLoading = false
                     return
                 }
-                
+
                 // Update local state
-                logger.log("📝 Updating local state with fetched data", category: "DataManager")
                 self.nodes = allNodes
                 self.tags = allTags
-                
+
                 // Save to cache
-                logger.log("💾 Saving to cache...", category: "DataManager")
                 await cacheManager.saveNodes(allNodes)
                 await cacheManager.saveTags(allTags)
                 await cacheManager.saveMetadata(
@@ -396,33 +383,27 @@ public class DataManager: ObservableObject {
                     tagCount: allTags.count,
                     ruleCount: 0  // Will be updated when rules are supported
                 )
-                
+
                 self.lastSyncDate = Date()
-                logger.log("✅ Data sync completed successfully", category: "DataManager")
-                
+                logger.log("✅ Sync completed", category: "DataManager")
+
             } catch {
                 logger.log("❌ API call failed with error: \(error)", level: .error, category: "DataManager")
-                logger.log("📊 Error details: \(error.localizedDescription)", level: .error, category: "DataManager")
                 errorMessage = "Sync failed. Loading from cache..."
-                
+
                 // Fall back to cache
-                logger.log("🔄 Falling back to cache...", category: "DataManager")
                 await loadFromCache()
             }
         } else {
             // Offline - load from cache
-            logger.log("📴 Network is OFFLINE - loading from cache", category: "DataManager")
             await loadFromCache()
         }
-        
+
         isLoading = false
-        logger.log("✅ DataManager.syncAllData() completed. Final nodes.count=\(nodes.count)", category: "DataManager")
     }
     
     /// Sync pending offline operations
     public func syncPendingOperations() async {
-        logger.log("🔄 Starting sync of pending operations", category: "DataManager")
-
         // Cancel any existing sync task to prevent duplicates
         if let existingTask = syncTask, !existingTask.isCancelled {
             logger.log("⚠️ Cancelling existing sync task to prevent duplicates", category: "DataManager")
@@ -434,26 +415,25 @@ public class DataManager: ObservableObject {
 
         // Check if cancelled during delay
         if Task.isCancelled {
-            logger.log("🚫 Sync cancelled during debounce delay", category: "DataManager")
             return
         }
 
         // Process the queue
         let (succeeded, failed, tempIdMap) = await offlineQueue.processPendingOperations()
-        
+
         if succeeded > 0 || failed > 0 {
-            logger.log("📊 Sync results: \(succeeded) succeeded, \(failed) failed", category: "DataManager")
-            
+            logger.log("✅ Sync completed: \(succeeded) succeeded, \(failed) failed", category: "DataManager")
+
             // Replace temp IDs in local nodes
             if !tempIdMap.isEmpty {
                 await replaceTempIds(tempIdMap)
             }
-            
+
             // Refresh data from server after successful sync
             if succeeded > 0 {
                 await syncAllData()
             }
-            
+
             // Update error message if there were failures
             if failed > 0 {
                 errorMessage = "\(failed) operations failed to sync"
@@ -465,8 +445,6 @@ public class DataManager: ObservableObject {
     
     /// Replace temporary IDs with server IDs in local nodes
     private func replaceTempIds(_ tempIdMap: [String: String]) async {
-        logger.log("🔄 Replacing \(tempIdMap.count) temporary IDs", category: "DataManager")
-        
         var updated = false
         
         // Update node IDs
@@ -531,26 +509,25 @@ public class DataManager: ObservableObject {
     
     /// Load data from local cache
     private func loadFromCache() async {
-        
+
         if let cachedNodes = await cacheManager.loadNodes() {
             self.nodes = cachedNodes
         } else {
             logger.log("⚠️ No nodes found in cache", category: "DataManager")
         }
-        
+
         if let cachedTags = await cacheManager.loadTags() {
             self.tags = cachedTags
         } else {
             logger.log("⚠️ No tags found in cache", category: "DataManager")
         }
-        
+
         if let metadata = await cacheManager.loadMetadata() {
             self.lastSyncDate = metadata.lastSyncDate
-            logger.log("📅 Cache last synced: \(metadata.lastSyncDate)", category: "DataManager")
         } else {
             logger.log("⚠️ No cache metadata found", category: "DataManager")
         }
-        
+
     }
     
     public func toggleNodeCompletion(_ node: Node) async -> Node? {
@@ -583,19 +560,15 @@ public class DataManager: ObservableObject {
                     logger.log("⚠️ Node not found in local nodes array", category: "DataManager")
                 }
                 
-                logger.log("✅ Toggled task completion for: \(node.title) - now \(isCurrentlyCompleted ? "uncompleted" : "completed")", category: "DataManager")
                 return updatedNode
             } catch {
                 logger.log("❌ Failed to toggle task completion: \(error)", category: "DataManager")
-                logger.log("   - Error type: \(type(of: error))", category: "DataManager")
-                logger.log("   - Error description: \(error.localizedDescription)", category: "DataManager")
                 errorMessage = error.localizedDescription
                 return nil
             }
         } else {
             // Offline - toggle locally and queue for sync
-            logger.log("📴 Offline - toggling task locally", category: "DataManager")
-            
+
             guard let taskData = node.taskData else {
                 logger.log("⚠️ No task data found", category: "DataManager")
                 return nil
@@ -625,8 +598,7 @@ public class DataManager: ObservableObject {
                 
                 // Save to cache
                 await cacheManager.saveNodes(nodes)
-                
-                logger.log("✅ Toggled task locally: \(node.title) - now \(!wasCompleted ? "completed" : "uncompleted")", category: "DataManager")
+
                 errorMessage = "Changed offline - will sync when connected"
                 
                 return updatedNode
@@ -640,7 +612,6 @@ public class DataManager: ObservableObject {
 
     /// Gets the current default folder ID from settings
     public func getDefaultFolder() async -> String? {
-
         do {
             let defaultNodeId = try await api.getDefaultNode()
             return defaultNodeId
@@ -652,7 +623,6 @@ public class DataManager: ObservableObject {
 
     /// Sets the default folder ID in settings
     public func setDefaultFolder(nodeId: String?) async -> Bool {
-
         do {
             try await api.setDefaultNode(nodeId: nodeId)
             return true
@@ -666,13 +636,11 @@ public class DataManager: ObservableObject {
 
     /// Instantiates a template with optional parent override
     public func instantiateTemplate(templateId: String, parentId: String? = nil) async -> Node? {
-
         do {
             let newNode = try await api.instantiateTemplate(
                 templateId: templateId,
                 parentId: parentId
             )
-
 
             // Do not perform a sync or refresh here; caller handles targeted refresh/retry
             return newNode
@@ -687,7 +655,6 @@ public class DataManager: ObservableObject {
 
     /// Refreshes a single node and its children from the API
     public func refreshNode(_ nodeId: String) async {
-
         // Store current state for rollback if needed
         let backupNodes = nodes
         let currentNode = nodes.first(where: { $0.id == nodeId })
@@ -697,7 +664,6 @@ public class DataManager: ObservableObject {
             // Fetch the updated node and its direct children
             let updatedNode = try await api.getNode(id: nodeId)
             let children = try await api.getNodes(parentId: nodeId)
-            logger.log("📊 Fetched \(children.count) children for node: \(updatedNode.title)", category: "DataManager")
 
             // Snapshot of previous direct children
             let oldChildrenIds = Set(nodes.filter { $0.parentId == nodeId }.map { $0.id })
@@ -730,17 +696,13 @@ public class DataManager: ObservableObject {
             let idsToRemove = removedDirectChildren.union(removedSubtree)
 
             // 1) Remove only removed children and their descendants
-            let removedCountBefore = nodes.count
             nodes.removeAll { idsToRemove.contains($0.id) }
-            logger.log("🗑️ Removed \(removedCountBefore - nodes.count) nodes (removed children + descendants)", category: "DataManager")
 
             // 2) Upsert the main node
             if let index = nodes.firstIndex(where: { $0.id == nodeId }) {
                 nodes[index] = updatedNode
-                logger.log("✅ Node updated: \(updatedNode.title)", category: "DataManager")
             } else {
                 nodes.append(updatedNode)
-                logger.log("✅ Node added: \(updatedNode.title)", category: "DataManager")
             }
 
             // 3) Upsert direct children returned by API (don't touch their subtrees)
@@ -751,7 +713,6 @@ public class DataManager: ObservableObject {
                     nodes.append(child)
                 }
             }
-            logger.log("✅ Upserted \(children.count) direct children for node: \(updatedNode.id)", category: "DataManager")
 
         } catch {
             logger.error("❌ Failed to refresh node: \(error)", category: "DataManager")
@@ -759,11 +720,7 @@ public class DataManager: ObservableObject {
 
             // Error recovery: Restore previous state to maintain consistency
             if currentNode != nil || !currentChildren.isEmpty {
-                logger.log("🔄 Attempting to restore previous state after refresh failure", category: "DataManager")
                 nodes = backupNodes
-                logger.log("✅ Restored previous state with \(currentChildren.count) children", category: "DataManager")
-            } else {
-                logger.log("⚠️ No previous state to restore, maintaining current data", category: "DataManager")
             }
 
             // If offline, the data remains consistent with last known good state
@@ -816,7 +773,6 @@ public class DataManager: ObservableObject {
 
     /// Get a single node by ID
     public func getNode(id: String) async throws -> Node {
-
         // First check if we have it locally
         if let localNode = nodes.first(where: { $0.id == id }) {
             return localNode
@@ -842,11 +798,8 @@ public class DataManager: ObservableObject {
 
     /// Executes a smart folder rule and returns the result nodes
     public func executeSmartFolder(nodeId: String) async -> [Node] {
-
         do {
             let resultNodes = try await api.executeSmartFolderRule(smartFolderId: nodeId)
-
-
             return resultNodes
         } catch {
             logger.log("❌ Failed to execute smart folder: \(error)", level: .error, category: "DataManager")
