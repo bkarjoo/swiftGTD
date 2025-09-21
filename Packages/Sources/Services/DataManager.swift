@@ -745,22 +745,42 @@ public class DataManager: ObservableObject {
 
     // MARK: - Node Refresh
 
-    /// Refreshes a single node from the API
+    /// Refreshes a single node and its children from the API
     public func refreshNode(_ nodeId: String) async {
         logger.log("📞 refreshNode called for: \(nodeId)", category: "DataManager")
 
         do {
+            // Fetch the updated node
             let updatedNode = try await api.getNode(id: nodeId)
 
-            // Update the node in our nodes array
+            // Fetch the node's children to maintain consistency
+            let children = try await api.getNodes(parentId: nodeId)
+            logger.log("📊 Fetched \(children.count) children for node: \(updatedNode.title)", category: "DataManager")
+
+            // Begin update - remove old children first
+            let oldChildrenIds = nodes
+                .filter { $0.parentId == nodeId }
+                .map { $0.id }
+
+            // Remove stale children that no longer exist
+            nodes.removeAll { node in
+                oldChildrenIds.contains(node.id)
+            }
+            logger.log("🗑️ Removed \(oldChildrenIds.count) old children", category: "DataManager")
+
+            // Update or add the main node
             if let index = nodes.firstIndex(where: { $0.id == nodeId }) {
                 nodes[index] = updatedNode
-                logger.log("✅ Node refreshed: \(updatedNode.title)", category: "DataManager")
+                logger.log("✅ Node updated: \(updatedNode.title)", category: "DataManager")
             } else {
-                // Node not found locally, add it
                 nodes.append(updatedNode)
                 logger.log("✅ Node added: \(updatedNode.title)", category: "DataManager")
             }
+
+            // Add all current children
+            nodes.append(contentsOf: children)
+            logger.log("✅ Added \(children.count) children to maintain consistency", category: "DataManager")
+
         } catch {
             logger.error("❌ Failed to refresh node: \(error)", category: "DataManager")
             errorMessage = error.localizedDescription

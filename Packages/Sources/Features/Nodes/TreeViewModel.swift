@@ -140,8 +140,89 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         self.nodeChildren = childrenMap
         logger.log("✅ Built parent-child relationships for \(childrenMap.count) parents", category: "TreeViewModel")
+
+        // Validate consistency in debug builds
+        #if DEBUG
+        validateNodeConsistency()
+        #endif
     }
-    
+
+    // MARK: - Data Consistency Helpers
+
+    /// Validate that allNodes and nodeChildren are consistent
+    private func validateNodeConsistency() {
+        logger.log("🔍 Validating node consistency...", category: "TreeViewModel")
+
+        var issues: [String] = []
+
+        // Check 1: All children in nodeChildren exist in allNodes
+        for (parentId, children) in nodeChildren {
+            for child in children {
+                if !allNodes.contains(where: { $0.id == child.id }) {
+                    issues.append("Child \(child.id) in nodeChildren[\(parentId)] not found in allNodes")
+                }
+            }
+        }
+
+        // Check 2: All nodes with parentId have that parent in allNodes
+        for node in allNodes {
+            if let parentId = node.parentId {
+                if !allNodes.contains(where: { $0.id == parentId }) {
+                    issues.append("Node \(node.id) references parent \(parentId) that doesn't exist in allNodes")
+                }
+            }
+        }
+
+        // Check 3: All parent-child relationships are reflected in nodeChildren
+        for node in allNodes {
+            if let parentId = node.parentId {
+                if let siblings = nodeChildren[parentId] {
+                    if !siblings.contains(where: { $0.id == node.id }) {
+                        issues.append("Node \(node.id) with parent \(parentId) not found in nodeChildren[\(parentId)]")
+                    }
+                } else {
+                    // Parent should have an entry in nodeChildren if it has children
+                    issues.append("Parent \(parentId) of node \(node.id) has no entry in nodeChildren")
+                }
+            }
+        }
+
+        if issues.isEmpty {
+            logger.log("✅ Node consistency check passed", category: "TreeViewModel")
+        } else {
+            logger.error("❌ Node consistency issues found:", category: "TreeViewModel")
+            for issue in issues {
+                logger.error("  - \(issue)", category: "TreeViewModel")
+            }
+        }
+    }
+
+    /// Merge children into allNodes, removing orphans
+    private func mergeChildrenIntoNodes(parentId: String, children: [Node]) {
+        logger.log("🔄 Merging \(children.count) children for parent: \(parentId)", category: "TreeViewModel")
+
+        // Create a mutable copy of allNodes
+        var updatedNodes = allNodes
+
+        // Remove old children that are no longer present
+        let childIds = Set(children.map { $0.id })
+        updatedNodes.removeAll { node in
+            node.parentId == parentId && !childIds.contains(node.id)
+        }
+
+        // Update or add new children
+        for child in children {
+            if let index = updatedNodes.firstIndex(where: { $0.id == child.id }) {
+                updatedNodes[index] = child
+            } else {
+                updatedNodes.append(child)
+            }
+        }
+
+        // Rebuild nodeChildren with the updated nodes
+        updateNodesFromDataManager(updatedNodes)
+    }
+
     /// Initial load of nodes - only runs once per view lifecycle
     func initialLoad() async {
         guard !didLoad else {
@@ -288,6 +369,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Delete from backend - DataManager will update its nodes array which triggers our subscription
         await dataManager.deleteNode(node)
 
+        // Refresh parent node to ensure its children list is consistent
+        if let parentId = node.parentId {
+            await dataManager.refreshNode(parentId)
+        }
+
         // Handle UI-specific state cleanup and selection
         await MainActor.run {
             // If we were focused on a deleted node, unfocus
@@ -300,6 +386,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
             // Clear the nodeToDelete
             self.nodeToDelete = nil
+
+            #if DEBUG
+            // Validate data consistency after deletion
+            self.validateNodeConsistency()
+            #endif
 
             logger.log("✅ Delete completed, selected node: \(nextSelectionId ?? "none")", category: "TreeViewModel")
         }
@@ -436,6 +527,21 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
 
+        // Refresh the parent to ensure consistent ordering
+        if let parentId = draggedNode.parentId {
+            await dataManager.refreshNode(parentId)
+        } else {
+            // For root nodes, refresh all root nodes
+            await dataManager.syncAllData()
+        }
+
+        await MainActor.run {
+            #if DEBUG
+            // Validate data consistency after reordering
+            self.validateNodeConsistency()
+            #endif
+        }
+
         logger.log("✅ Reordering complete, updated \(updates.count) nodes", category: "TreeViewModel")
     }
 
@@ -446,13 +552,13 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
 
     func createNode(type: String, title: String, parentId: String?) async {
-        guard let dataManager = dataManager else { 
+        guard let dataManager = dataManager else {
             logger.log("❌ No dataManager available", category: "TreeViewModel")
-            return 
+            return
         }
-        
+
         logger.log("📞 Creating node - type: \(type), title: \(title), parentId: \(parentId ?? "nil")", category: "TreeViewModel")
-        
+
         if let createdNode = await dataManager.createNode(
             title: title,
             type: type,
@@ -461,14 +567,24 @@ public class TreeViewModel: ObservableObject, Identifiable {
             tags: []
         ) {
             logger.log("✅ Node created successfully: \(createdNode.id)", category: "TreeViewModel")
-            
+
             // The DataManager subscription will update allNodes and nodeChildren automatically
             // We only need to expand the parent if needed
+            // Ensure parent's children are consistent
+            if let parentId = createdNode.parentId {
+                await dataManager.refreshNode(parentId)
+            }
+
             await MainActor.run {
                 if let parentId = createdNode.parentId {
                     // Expand parent to show the new node
                     self.expandedNodes.insert(parentId)
                 }
+
+                #if DEBUG
+                // Validate data consistency
+                self.validateNodeConsistency()
+                #endif
             }
         } else {
             logger.log("❌ Failed to create node", category: "TreeViewModel")
@@ -519,7 +635,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return true
 
             case 12: // Q - Quick task
-                Task { await performAction(.createQuickTask) }
+                Task { performAction(.createQuickTask) }
                 return true
 
             default:
@@ -938,6 +1054,29 @@ public class TreeViewModel: ObservableObject, Identifiable {
             parentId: targetNodeId  // Pass the target node to DataManager
         ) {
             logger.log("✅ Template instantiated successfully: \(newNode.title)", category: "TreeViewModel")
+
+            // Retry logic: Wait for node to appear in local data (eventual consistency)
+            var retryCount = 0
+            let maxRetries = 3
+            let retryDelay: UInt64 = 500_000_000 // 0.5 seconds in nanoseconds
+
+            while retryCount < maxRetries {
+                if allNodes.contains(where: { $0.id == newNode.id }) {
+                    logger.log("✅ New node found in local data after \(retryCount) retries", category: "TreeViewModel")
+                    break
+                }
+
+                retryCount += 1
+                logger.log("⏳ Waiting for node to appear (retry \(retryCount)/\(maxRetries))...", category: "TreeViewModel")
+
+                // Wait briefly for data to sync
+                try? await Task.sleep(nanoseconds: retryDelay)
+
+                // Refresh the parent node to get updated children
+                if let targetId = targetNodeId {
+                    await dataManager.refreshNode(targetId)
+                }
+            }
 
             // After refresh (done by DataManager), expand target node and focus the new node
             await MainActor.run {
