@@ -11,18 +11,29 @@ public class TabModel: ObservableObject, Identifiable {
     public let id: UUID
     @Published public var title: String {
         didSet {
+            // Mark as user-overridden when explicitly set (not from focus update)
+            if !isUpdatingFromFocus {
+                hasUserOverriddenName = true
+            }
             // Notify TabbedTreeView to save state when title changes
             NotificationCenter.default.post(name: .tabStateChanged, object: nil)
         }
     }
     public let viewModel: TreeViewModel
     private var cancellables = Set<AnyCancellable>()
+    private var hasUserOverriddenName: Bool = false
+    private var isUpdatingFromFocus: Bool = false
 
     public init(id: UUID = UUID(), title: String = "All Nodes", focusedNodeId: String? = nil) {
         self.id = id
         self.title = title
         self.viewModel = TreeViewModel()
         self.viewModel.focusedNodeId = focusedNodeId
+
+        // Mark as user-overridden if a non-default title is provided
+        if title != "All Nodes" && title != "New Tab" {
+            self.hasUserOverriddenName = true
+        }
 
         // Only forward viewModel changes to trigger view updates
         // Focus/selection subscriptions are handled at TabbedTreeView level for active tab only
@@ -31,6 +42,44 @@ public class TabModel: ObservableObject, Identifiable {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+
+        // Subscribe to focus changes to update tab name (if not user-overridden)
+        setupFocusSubscription()
+    }
+
+    private func setupFocusSubscription() {
+        viewModel.$focusedNodeId
+            .removeDuplicates() // Only update when focus actually changes
+            .sink { [weak self] focusedId in
+                guard let self = self,
+                      !self.hasUserOverriddenName else { return }
+
+                // Update tab name based on focused node
+                if let focusedId = focusedId,
+                   let focusedNode = self.viewModel.currentFocusedNode {
+                    self.isUpdatingFromFocus = true
+                    self.title = focusedNode.title
+                    self.isUpdatingFromFocus = false
+                } else if focusedId == nil {
+                    // No focus - use default name only when explicitly cleared
+                    self.isUpdatingFromFocus = true
+                    self.title = "All Nodes"
+                    self.isUpdatingFromFocus = false
+                }
+                // If focusedId is set but node not found, keep current title
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Reset the user override flag to allow automatic naming again
+    public func resetToAutomaticNaming() {
+        hasUserOverriddenName = false
+        // Trigger an update based on current focus
+        if let focusedNode = viewModel.currentFocusedNode {
+            isUpdatingFromFocus = true
+            title = focusedNode.title
+            isUpdatingFromFocus = false
+        }
     }
 }
 
@@ -211,6 +260,14 @@ public struct TabbedTreeView: View {
     private func createTabWithName(_ name: String) {
         let tabName = name.isEmpty ? "New Tab" : name
         let newTab = TabModel(title: tabName)
+
+        // If user provided a custom name, mark it as overridden
+        // Otherwise, let it use automatic naming based on focus
+        if !name.isEmpty {
+            // This will trigger the didSet which marks it as user-overridden
+            newTab.title = tabName
+        }
+
         tabs.append(newTab)
         selectedTabId = newTab.id
         // onChange(of: selectedTabId) will handle subscription setup and saving
