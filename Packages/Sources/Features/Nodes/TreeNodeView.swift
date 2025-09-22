@@ -152,7 +152,7 @@ public struct TreeNodeView: View {
                     // Note nodes don't have focus mode
                     if node.nodeType != "note" {
                         Button(action: {
-                            logger.log("🔘 Focus button clicked for node: \(node.id)", category: "TreeNodeView")
+                            // logger.log("🔘 Focus button clicked for node: \(node.id)", category: "TreeNodeView")
                             // Focus on this node
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
@@ -200,7 +200,7 @@ public struct TreeNodeView: View {
                     Divider()
                     
                     Button(role: .destructive, action: {
-                        logger.log("🔘 Delete button clicked for node: \(node.id)", category: "TreeNodeView")
+                        // logger.log("🔘 Delete button clicked for node: \(node.id)", category: "TreeNodeView")
                         onDelete(node)
                     }) {
                         Label("Delete", systemImage: "trash")
@@ -280,21 +280,21 @@ public struct TreeNodeView: View {
             
             // Expand/collapse chevron
             Button(action: {
-                logger.log("🔽 Chevron clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
+                // logger.log("🔽 Chevron clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if isExpanded {
-                        logger.log("📦 Collapsing node: \(node.title)", category: "TreeNodeView")
+                        // logger.log("📦 Collapsing node: \(node.title)", category: "TreeNodeView")
                         if let onCollapseNode = onCollapseNode {
                             onCollapseNode(node.id)
                         } else {
                             expandedNodes.remove(node.id)
                         }
                     } else {
-                        logger.log("📤 Expanding node: \(node.title)", category: "TreeNodeView")
+                        // logger.log("📤 Expanding node: \(node.title)", category: "TreeNodeView")
                         expandedNodes.insert(node.id)
                         // SMART FOLDER RULE 3: Execute rule when expanding via chevron
                         if node.nodeType == "smart_folder" {
-                            logger.log("🧩 Smart folder detected on expand, executing rule", category: "TreeNodeView")
+                            // logger.log("🧩 Smart folder detected on expand, executing rule", category: "TreeNodeView")
                             Task {
                                 await executeSmartFolderRule()
                             }
@@ -315,27 +315,27 @@ public struct TreeNodeView: View {
             Button(action: {
                 if node.nodeType == "task" {
                     // For tasks, toggle completion status
-                    logger.log("🔘 Task checkbox clicked for node: \(node.id) - \(node.title)", category: "TreeNodeView")
+                    // logger.log("🔘 Task checkbox clicked for node: \(node.id) - \(node.title)", category: "TreeNodeView")
                     logger.log("Current completion status: \(node.taskData?.completedAt != nil)", category: "TreeNodeView")
                     onToggleTaskStatus(node)
                     logger.log("✅ onToggleTaskStatus called", category: "TreeNodeView")
                 } else if hasChildren {
                     // For non-task nodes with children, toggle expand/collapse (same as chevron)
-                    logger.log("🔽 Icon clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
+                    // logger.log("🔽 Icon clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
                     withAnimation(.easeInOut(duration: 0.2)) {
                         if isExpanded {
-                            logger.log("📦 Collapsing node via icon: \(node.title)", category: "TreeNodeView")
+                            // logger.log("📦 Collapsing node via icon: \(node.title)", category: "TreeNodeView")
                             if let onCollapseNode = onCollapseNode {
                                 onCollapseNode(node.id)
                             } else {
                                 expandedNodes.remove(node.id)
                             }
                         } else {
-                            logger.log("📤 Expanding node via icon: \(node.title)", category: "TreeNodeView")
+                            // logger.log("📤 Expanding node via icon: \(node.title)", category: "TreeNodeView")
                             expandedNodes.insert(node.id)
                             // SMART FOLDER RULE 3: Execute rule when expanding via icon
                             if node.nodeType == "smart_folder" {
-                                logger.log("🧩 Smart folder detected on expand via icon, executing rule", category: "TreeNodeView")
+                                // logger.log("🧩 Smart folder detected on expand via icon, executing rule", category: "TreeNodeView")
                                 Task {
                                     await executeSmartFolderRule()
                                 }
@@ -404,7 +404,7 @@ public struct TreeNodeView: View {
                             }
                         } else {
                             // Focus on this node (make it the new root)
-                            logger.log("🎯 Title clicked - focusing on node: \(node.id)", category: "TreeNodeView")
+                            // logger.log("🎯 Title clicked - focusing on node: \(node.id)", category: "TreeNodeView")
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
                             } else {

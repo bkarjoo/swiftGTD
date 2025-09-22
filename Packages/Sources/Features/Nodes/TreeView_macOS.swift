@@ -122,14 +122,14 @@ public struct TreeView_macOS: View {
     /*  REMOVED CODE - kept for reference only
             case 2: // D key - Details
                 if event.modifierFlags.contains(.shift) {
-                    logger.log("⌨️ Cmd+Shift+D pressed - delete node", category: "TreeView")
+                    // // logger.log("⌨️ Cmd+Shift+D pressed - delete node", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
                         viewModel.deleteNode(selectedNode)
                     }
                     return true
                 } else {
-                    logger.log("⌨️ Cmd+D pressed - show details", category: "TreeView")
+                    // logger.log("⌨️ Cmd+D pressed - show details", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
                         viewModel.showDetails(selectedNode)
@@ -139,7 +139,7 @@ public struct TreeView_macOS: View {
 
             case 3: // F key - Focus (Cmd+Shift+F)
                 if event.modifierFlags.contains(.shift) {
-                    logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TreeView")
+                    // logger.log("⌨️ Cmd+Shift+F pressed - focus on node", category: "TreeView")
                     if let selectedId = viewModel.selectedNodeId,
                        let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
                         if selectedNode.nodeType != "note" {
@@ -152,7 +152,7 @@ public struct TreeView_macOS: View {
                 break
 
             case 17: // T key - Tags
-                logger.log("⌨️ Cmd+T pressed - show tags", category: "TreeView")
+                // logger.log("⌨️ Cmd+T pressed - show tags", category: "TreeView")
                 if let selectedId = viewModel.selectedNodeId,
                    let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
                     viewModel.showTagPicker(selectedNode)
@@ -160,7 +160,7 @@ public struct TreeView_macOS: View {
                 return true
 
             case 14: // E key - Execute (smart folders)
-                logger.log("⌨️ Cmd+E pressed - execute smart folder", category: "TreeView")
+                // logger.log("⌨️ Cmd+E pressed - execute smart folder", category: "TreeView")
                 if let selectedId = viewModel.selectedNodeId,
                    let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
                    selectedNode.nodeType == "smart_folder" {
@@ -171,7 +171,7 @@ public struct TreeView_macOS: View {
                 return true
 
             case 32: // U key - Use template
-                logger.log("⌨️ Cmd+U pressed - use template", category: "TreeView")
+                // logger.log("⌨️ Cmd+U pressed - use template", category: "TreeView")
                 if let selectedId = viewModel.selectedNodeId,
                    let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
                    selectedNode.nodeType == "template" {
@@ -188,7 +188,7 @@ public struct TreeView_macOS: View {
 
         switch event.keyCode {
         case 47: // Period/Dot key - Toggle task completion
-            logger.log("⌨️ Dot pressed - toggle task", category: "TreeView")
+            // logger.log("⌨️ Dot pressed - toggle task", category: "TreeView")
             if let selectedId = viewModel.selectedNodeId,
                let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }),
                selectedNode.nodeType == "task" {
@@ -198,19 +198,19 @@ public struct TreeView_macOS: View {
             return true
 
         case 4: // H key - Help
-            logger.log("⌨️ H pressed - showing help", category: "TreeView")
+            // logger.log("⌨️ H pressed - showing help", category: "TreeView")
             viewModel.showingHelpWindow = true
             return true
 
         case 12: // Q key - Quick add to default folder
-            logger.log("⌨️ Q pressed - quick add to default folder", category: "TreeView")
+            // logger.log("⌨️ Q pressed - quick add to default folder", category: "TreeView")
             Task {
                 await handleQuickAddToDefaultFolder()
             }
             return true
 
         case 17 where !event.modifierFlags.contains(.command): // T key (without Cmd)
-            logger.log("⌨️ T pressed - creating new task", category: "TreeView")
+            // logger.log("⌨️ T pressed - creating new task", category: "TreeView")
             viewModel.createNodeType = "task"
             viewModel.createNodeTitle = ""
             viewModel.createNodeParentId = nil  // Clear any previous parent ID
@@ -218,7 +218,7 @@ public struct TreeView_macOS: View {
             return true
 
         case 45: // N key
-            logger.log("⌨️ N pressed - creating new note", category: "TreeView")
+            // logger.log("⌨️ N pressed - creating new note", category: "TreeView")
             viewModel.createNodeType = "note"
             viewModel.createNodeTitle = ""
             viewModel.createNodeParentId = nil  // Clear any previous parent ID
@@ -226,7 +226,7 @@ public struct TreeView_macOS: View {
             return true
 
         case 3 where !event.modifierFlags.contains(.command): // F key (without Cmd)
-            logger.log("⌨️ F pressed - creating new folder", category: "TreeView")
+            // logger.log("⌨️ F pressed - creating new folder", category: "TreeView")
             viewModel.createNodeType = "folder"
             viewModel.createNodeTitle = ""
             viewModel.createNodeParentId = nil  // Clear any previous parent ID
@@ -234,7 +234,7 @@ public struct TreeView_macOS: View {
             return true
 
         case 49: // Space bar
-            logger.log("⌨️ Space bar pressed", category: "TreeView")
+            // logger.log("⌨️ Space bar pressed", category: "TreeView")
             if let selectedId = viewModel.selectedNodeId {
                 logger.log("✏️ Entering edit mode for node: \(selectedId)", category: "TreeView")
                 viewModel.isEditing = true
@@ -254,7 +254,7 @@ public struct TreeView_macOS: View {
     // REMOVED: Local navigation methods - now handled by viewModel.navigateToNode()
     /*
     private func moveToNextSibling() {
-        logger.log("📞 moveToNextSibling called", category: "TreeView")
+        // logger.log("📞 moveToNextSibling called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId else {
             logger.log("⚠️ No current selection, selecting initial node", category: "TreeView")
             if let focusedId = viewModel.focusedNodeId {
@@ -305,7 +305,7 @@ public struct TreeView_macOS: View {
     }
 
     private func moveToPreviousSibling() {
-        logger.log("📞 moveToPreviousSibling called", category: "TreeView")
+        // logger.log("📞 moveToPreviousSibling called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId else {
             logger.log("⚠️ No current selection", category: "TreeView")
             return
@@ -341,7 +341,7 @@ public struct TreeView_macOS: View {
     }
 
     private func findLastVisibleDescendant(of nodeId: String) -> String {
-        logger.log("📞 findLastVisibleDescendant called for: \(nodeId)", category: "TreeView")
+        // logger.log("📞 findLastVisibleDescendant called for: \(nodeId)", category: "TreeView")
         var lastId = nodeId
 
         while viewModel.expandedNodes.contains(lastId) {
@@ -358,7 +358,7 @@ public struct TreeView_macOS: View {
     }
 
     private func moveToFirstChild() {
-        logger.log("📞 moveToFirstChild called", category: "TreeView")
+        // logger.log("📞 moveToFirstChild called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId,
               let currentNode = viewModel.allNodes.first(where: { $0.id == currentId }) else {
             logger.log("⚠️ No current selection or node not found", category: "TreeView")
@@ -402,7 +402,7 @@ public struct TreeView_macOS: View {
     }
 
     private func moveToParent() {
-        logger.log("📞 moveToParent called", category: "TreeView")
+        // logger.log("📞 moveToParent called", category: "TreeView")
         guard let currentId = viewModel.selectedNodeId,
               let currentNode = viewModel.allNodes.first(where: { $0.id == currentId }) else {
             logger.log("⚠️ No current selection or node not found", category: "TreeView")
@@ -435,7 +435,7 @@ public struct TreeView_macOS: View {
     }
 
     private func getSiblings(of nodeId: String) -> [Node] {
-        logger.log("📞 getSiblings called for: \(nodeId)", category: "TreeView")
+        // logger.log("📞 getSiblings called for: \(nodeId)", category: "TreeView")
         guard let node = viewModel.allNodes.first(where: { $0.id == nodeId }) else {
             logger.log("⚠️ Node not found: \(nodeId)", category: "TreeView")
             return []
