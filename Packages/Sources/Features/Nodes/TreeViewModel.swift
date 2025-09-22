@@ -150,7 +150,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Check 1: All children in nodeChildren exist in allNodes
         for (parentId, children) in nodeChildren {
             for child in children {
-                if !allNodes.contains(where: { $0.id == child.id }) {
+                if nodeCache[child.id] == nil {
                     issues.append("Child \(child.id) in nodeChildren[\(parentId)] not found in allNodes")
                 }
             }
@@ -159,7 +159,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Check 2: All nodes with parentId have that parent in allNodes
         for node in allNodes {
             if let parentId = node.parentId {
-                if !allNodes.contains(where: { $0.id == parentId }) {
+                if nodeCache[parentId] == nil {
                     issues.append("Node \(node.id) references parent \(parentId) that doesn't exist in allNodes")
                 }
             }
@@ -992,7 +992,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let nodeId = nodeId {
             expandedNodes.insert(nodeId) // Always expand when focusing
         }
-        NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
     }
 
     /// Expand a node
@@ -1191,7 +1190,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
             let retryDelay: UInt64 = 500_000_000 // 0.5 seconds in nanoseconds
 
             while retryCount < maxRetries {
-                if allNodes.contains(where: { $0.id == newNode.id }) {
+                if nodeCache[newNode.id] != nil {
                     break
                 }
 
