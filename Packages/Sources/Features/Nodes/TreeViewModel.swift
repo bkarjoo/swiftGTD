@@ -91,7 +91,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         return chain
     }
     
-    private func updateNodesFromDataManager(_ nodes: [Node]) {
+    internal func updateNodesFromDataManager(_ nodes: [Node]) {
         // No need to set allNodes anymore, it's computed from dataManager
 
         // Rebuild node cache for O(1) lookups
