@@ -157,8 +157,11 @@ public struct TreeNodeView: View {
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
                             } else {
-                                focusedNodeId = node.id
-                                expandedNodes.insert(node.id)
+                                // Batch the focus and expand updates
+                                withTransaction(Transaction(animation: nil)) {
+                                    focusedNodeId = node.id
+                                    expandedNodes.insert(node.id)
+                                }
                                 NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
                             }
                         }) {
@@ -408,20 +411,23 @@ public struct TreeNodeView: View {
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
                             } else {
-                                focusedNodeId = node.id
-                                // Auto-expand when focusing
-                                expandedNodes.insert(node.id)
-                            }
+                                // Batch all the state updates
+                                withTransaction(Transaction(animation: nil)) {
+                                    focusedNodeId = node.id
+                                    // Auto-expand when focusing
+                                    expandedNodes.insert(node.id)
 
-                            // If selected node is not within this focused branch, move selection to focused node
-                            if let currentSelected = selectedNodeId {
-                                if !isNodeWithinBranch(currentSelected, branchRoot: node.id) {
-                                    logger.log("🎯 Moving selection to focused node as current selection is outside branch", category: "TreeNodeView")
-                                    selectedNodeId = node.id
+                                    // If selected node is not within this focused branch, move selection to focused node
+                                    if let currentSelected = selectedNodeId {
+                                        if !isNodeWithinBranch(currentSelected, branchRoot: node.id) {
+                                            logger.log("🎯 Moving selection to focused node as current selection is outside branch", category: "TreeNodeView")
+                                            selectedNodeId = node.id
+                                        }
+                                    } else {
+                                        // No selection, select the focused node
+                                        selectedNodeId = node.id
+                                    }
                                 }
-                            } else {
-                                // No selection, select the focused node
-                                selectedNodeId = node.id
                             }
 
                             // SMART FOLDER RULE 3: Execute rule when focusing via title click

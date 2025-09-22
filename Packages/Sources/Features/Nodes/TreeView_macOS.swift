@@ -387,16 +387,16 @@ public struct TreeView_macOS: View {
             } else {
                 if viewModel.focusedNodeId != currentId {
                     logger.log("🎯 Right arrow focusing on expanded node: \(currentNode.title)", category: "TreeView")
-                    viewModel.focusOnNode(currentNode)
-                    viewModel.selectedNodeId = currentId
+                    // Use selectAndFocus composite method instead of separate calls
+                    viewModel.selectAndFocus(currentId)
                 }
             }
         } else {
             // Node has no children - still focus it
             if viewModel.focusedNodeId != currentId {
                 logger.log("🎯 Right arrow focusing on node without children: \(currentNode.title)", category: "TreeView")
-                viewModel.focusOnNode(currentNode)
-                viewModel.selectedNodeId = currentId
+                // Use selectAndFocus composite method instead of separate calls
+                viewModel.selectAndFocus(currentId)
             }
         }
     }

@@ -327,16 +327,18 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         // Handle UI-specific state cleanup and selection
         await MainActor.run {
-            // If we were focused on a deleted node, unfocus
-            if let focusedId = self.focusedNodeId, nodesToRemove.contains(focusedId) {
-                self.setFocusedNode(nil)
+            self.batchUI {
+                // If we were focused on a deleted node, unfocus
+                if let focusedId = self.focusedNodeId, nodesToRemove.contains(focusedId) {
+                    self.focusedNodeId = nil
+                }
+
+                // Set the new selection
+                self.selectedNodeId = nextSelectionId
+
+                // Clear the nodeToDelete
+                self.nodeToDelete = nil
             }
-
-            // Set the new selection
-            self.selectedNodeId = nextSelectionId
-
-            // Clear the nodeToDelete
-            self.nodeToDelete = nil
 
             #if DEBUG
             // Validate data consistency after deletion
@@ -892,12 +894,14 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // If we're in focus mode and this is the focused node, exit focus first
         if focusedNodeId == nodeId {
             // Exit focus mode - go back to parent or root view
-            if let parentId = node.parentId {
-                setFocusedNode(parentId)
-                setSelectedNode(nodeId) // Keep selection on current node
-            } else {
-                setFocusedNode(nil) // Exit to root view
-                setSelectedNode(nodeId) // Keep selection on current node
+            batchUI {
+                if let parentId = node.parentId {
+                    focusedNodeId = parentId
+                    selectedNodeId = nodeId // Keep selection on current node
+                } else {
+                    focusedNodeId = nil // Exit to root view
+                    selectedNodeId = nodeId // Keep selection on current node
+                }
             }
         } else if expandedNodes.contains(nodeId) && !getChildren(of: nodeId).isEmpty {
             // Collapse if expanded and has children
@@ -981,6 +985,13 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     // MARK: - State Management Methods
 
+    /// Batch multiple UI updates to reduce rendering churn
+    private func batchUI(_ updates: () -> Void) {
+        withTransaction(Transaction(animation: nil)) {
+            updates()
+        }
+    }
+
     /// Set the selected node
     func setSelectedNode(_ nodeId: String?) {
         selectedNodeId = nodeId
@@ -999,18 +1010,22 @@ public class TreeViewModel: ObservableObject, Identifiable {
         expandedNodes.insert(nodeId)
     }
 
-    /// Collapse a node
+    /// Collapse a node - batches UI updates
     func collapseNode(_ nodeId: String) {
-        expandedNodes.remove(nodeId)
+        batchUI {
+            var expanded = expandedNodes
+            expanded.remove(nodeId)
+            expandedNodes = expanded
 
-        // If the currently selected node is a descendant of the collapsed node,
-        // move selection to the collapsed parent node
-        if let selectedId = selectedNodeId {
-            if isDescendant(selectedId, of: nodeId) {
-                setSelectedNode(nodeId)
-                // Also clear focus if focused node was a descendant
-                if let focusedId = focusedNodeId, isDescendant(focusedId, of: nodeId) {
-                    setFocusedNode(nil)
+            // If the currently selected node is a descendant of the collapsed node,
+            // move selection to the collapsed parent node
+            if let selectedId = selectedNodeId {
+                if isDescendant(selectedId, of: nodeId) {
+                    selectedNodeId = nodeId
+                    // Also clear focus if focused node was a descendant
+                    if let focusedId = focusedNodeId, isDescendant(focusedId, of: nodeId) {
+                        focusedNodeId = nil
+                    }
                 }
             }
         }
@@ -1050,16 +1065,31 @@ public class TreeViewModel: ObservableObject, Identifiable {
         showingDetailsForNode = node
     }
 
-    /// Focus on a node with smart folder handling (unified method)
+    /// Focus on a node with smart folder handling (unified method) - batches UI updates
     func focusOnNode(_ node: Node) {
-        setFocusedNode(node.id)
-        expandedNodes.insert(node.id)
+        batchUI {
+            focusedNodeId = node.id
+            var expanded = expandedNodes
+            expanded.insert(node.id)
+            expandedNodes = expanded
+        }
 
         // Execute smart folder if focusing on one
         if node.nodeType == "smart_folder" {
             Task {
                 await executeSmartFolder(node)
             }
+        }
+    }
+
+    /// Select and focus a node with expansion (composite intent)
+    func selectAndFocus(_ nodeId: String) {
+        batchUI {
+            selectedNodeId = nodeId
+            focusedNodeId = nodeId
+            var expanded = expandedNodes
+            expanded.insert(nodeId)
+            expandedNodes = expanded
         }
     }
 
@@ -1128,11 +1158,13 @@ public class TreeViewModel: ObservableObject, Identifiable {
             parentId: defaultNodeId
         ) {
 
-            // Expand the default folder to show the new task
-            expandedNodes.insert(defaultNodeId)
-
-            // Select the new task
-            selectedNodeId = newNode.id
+            // Batch UI updates: expand and select
+            batchUI {
+                var expanded = expandedNodes
+                expanded.insert(defaultNodeId)
+                expandedNodes = expanded
+                selectedNodeId = newNode.id
+            }
         }
     }
 
@@ -1206,16 +1238,21 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 }
             }
 
-            // After refresh (done by DataManager), expand target node and focus the new node
+            // After refresh (done by DataManager), batch UI updates
             await MainActor.run {
-                // Expand the target node if it exists
-                if let targetId = targetNodeId {
-                    self.expandedNodes.insert(targetId)
-                }
+                self.batchUI {
+                    // Build expanded set with both target and new node
+                    var expanded = self.expandedNodes
+                    if let targetId = targetNodeId {
+                        expanded.insert(targetId)
+                    }
+                    expanded.insert(newNode.id)
 
-                // Select and focus the newly created node
-                self.selectedNodeId = newNode.id
-                self.setFocusedNode(newNode.id)
+                    // Apply all state changes at once
+                    self.expandedNodes = expanded
+                    self.selectedNodeId = newNode.id
+                    self.focusedNodeId = newNode.id
+                }
             }
         } else {
             logger.log("❌ Failed to instantiate template", level: .error, category: "TreeViewModel")
