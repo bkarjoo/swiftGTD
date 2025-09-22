@@ -16,6 +16,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
     var allNodes: [Node] {
         dataManager?.nodes ?? []
     }
+    // Node lookup cache for O(1) access
+    private var nodeCache: [String: Node] = [:]
     @Published var nodeChildren: [String: [Node]] = [:]
     @Published var isLoading = false
     @Published var expandedNodes = Set<String>()
@@ -59,7 +61,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     
     var currentFocusedNode: Node? {
         guard let focusedId = focusedNodeId else { return nil }
-        return allNodes.first { $0.id == focusedId }
+        return nodeCache[focusedId]
     }
     
     func getRootNodes() -> [Node] {
@@ -78,7 +80,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         var currentNode: Node? = node
         
         while let current = currentNode, let parentId = current.parentId, !parentId.isEmpty {
-            if let parent = allNodes.first(where: { $0.id == parentId }) {
+            if let parent = nodeCache[parentId] {
                 chain.insert(parent, at: 0)
                 currentNode = parent
             } else {
@@ -92,12 +94,18 @@ public class TreeViewModel: ObservableObject, Identifiable {
     private func updateNodesFromDataManager(_ nodes: [Node]) {
         // No need to set allNodes anymore, it's computed from dataManager
 
+        // Rebuild node cache for O(1) lookups
+        nodeCache.removeAll()
+        for node in nodes {
+            nodeCache[node.id] = node
+        }
+
         // Preserve smart folder results before rebuilding
         var smartFolderResults: [String: [Node]] = [:]
         for (nodeId, children) in nodeChildren {
             // Check if this is a smart folder with results
-            // Use the nodes parameter instead of allNodes to ensure we have the data
-            if let node = nodes.first(where: { $0.id == nodeId }),
+            // Use the cache we just built for O(1) lookup
+            if let node = nodeCache[nodeId],
                node.nodeType == "smart_folder",
                !children.isEmpty {
                 smartFolderResults[nodeId] = children
@@ -362,7 +370,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        guard let node = allNodes.first(where: { $0.id == nodeId }) else {
+        guard let node = nodeCache[nodeId] else {
             logger.log("❌ Node not found: \(nodeId)", category: "TreeViewModel")
             return
         }
@@ -444,8 +452,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         // Update each node's sort order
         for update in updates {
-            if let nodeIndex = allNodes.firstIndex(where: { $0.id == update.nodeId }) {
-                let node = allNodes[nodeIndex]
+            if let node = nodeCache[update.nodeId] {
 
                 let nodeUpdate = NodeUpdate(
                     title: node.title,
@@ -596,7 +603,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 return true
 
             case 36: // Return with Cmd - Open note editor
-                if let node = allNodes.first(where: { $0.id == selectedNodeId }),
+                if let node = nodeCache[selectedNodeId ?? ""],
                    node.nodeType == "note" {
                     openNoteEditor(node)
                     return true
@@ -745,7 +752,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return
         }
 
-        guard let node = allNodes.first(where: { $0.id == targetId }) else {
+        guard let node = nodeCache[targetId] else {
             logger.log("⚠️ Node not found: \(targetId)", category: "TreeViewModel")
             return
         }
@@ -880,7 +887,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
 
     private func navigateLeft(from nodeId: String) {
-        guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
+        guard let node = nodeCache[nodeId] else { return }
 
         // If we're in focus mode and this is the focused node, exit focus first
         if focusedNodeId == nodeId {
@@ -902,7 +909,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     }
 
     private func navigateRight(from nodeId: String) {
-        guard let node = allNodes.first(where: { $0.id == nodeId }) else { return }
+        guard let node = nodeCache[nodeId] else { return }
 
         // Special handling for different node types
         switch node.nodeType {
@@ -958,7 +965,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
             logger.log("  getVisibleNodes: In FOCUS mode - focusedId: \(focusedId)", category: "NAVIGATION")
             // When focused, we should show the focused node AND its children
             // Not just the children!
-            if let focusedNode = allNodes.first(where: { $0.id == focusedId }) {
+            if let focusedNode = nodeCache[focusedId] {
                 rootNodes = [focusedNode]
             } else {
                 rootNodes = getChildren(of: focusedId)
@@ -1015,7 +1022,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
         var currentId: String? = childId
         while let id = currentId {
             // Get parent of current node
-            if let parent = allNodes.first(where: { $0.id == id })?.parentId {
+            if let parent = nodeCache[id]?.parentId {
                 if parent == ancestorId {
                     return true
                 }
@@ -1082,10 +1089,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         // Copy focused node or selected node hierarchy
         if let focusedId = focusedNodeId,
-           let focusedNode = allNodes.first(where: { $0.id == focusedId }) {
+           let focusedNode = nodeCache[focusedId] {
             addNodeToText(focusedNode, level: 0)
         } else if let selectedId = selectedNodeId,
-                  let selectedNode = allNodes.first(where: { $0.id == selectedId }) {
+                  let selectedNode = nodeCache[selectedId] {
             addNodeToText(selectedNode, level: 0)
         }
 
