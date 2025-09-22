@@ -1238,6 +1238,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 }
             }
 
+            // IMPORTANT: Refresh the new node itself to load its children
+            // This ensures the template's content is loaded when we focus on it
+            await dataManager.refreshNode(newNode.id)
+
             // After refresh (done by DataManager), batch UI updates
             await MainActor.run {
                 self.batchUI {
