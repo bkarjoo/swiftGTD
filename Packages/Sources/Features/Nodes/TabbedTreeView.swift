@@ -48,25 +48,16 @@ public class TabModel: ObservableObject, Identifiable {
     }
 
     private func setupFocusSubscription() {
-        viewModel.$focusedNodeId
-            .removeDuplicates() // Only update when focus actually changes
-            .sink { [weak self] focusedId in
+        viewModel.$focusedNode
+            .removeDuplicates { $0?.id == $1?.id } // Only update when node actually changes
+            .sink { [weak self] node in
                 guard let self = self,
                       !self.hasUserOverriddenName else { return }
 
                 // Update tab name based on focused node
-                if let focusedId = focusedId,
-                   let focusedNode = self.viewModel.currentFocusedNode {
-                    self.isUpdatingFromFocus = true
-                    self.title = focusedNode.title
-                    self.isUpdatingFromFocus = false
-                } else if focusedId == nil {
-                    // No focus - use default name only when explicitly cleared
-                    self.isUpdatingFromFocus = true
-                    self.title = "All Nodes"
-                    self.isUpdatingFromFocus = false
-                }
-                // If focusedId is set but node not found, keep current title
+                self.isUpdatingFromFocus = true
+                self.title = node?.title ?? "All Nodes"
+                self.isUpdatingFromFocus = false
             }
             .store(in: &cancellables)
     }
@@ -75,9 +66,13 @@ public class TabModel: ObservableObject, Identifiable {
     public func resetToAutomaticNaming() {
         hasUserOverriddenName = false
         // Trigger an update based on current focus
-        if let focusedNode = viewModel.currentFocusedNode {
+        if let focusedNode = viewModel.focusedNode {
             isUpdatingFromFocus = true
             title = focusedNode.title
+            isUpdatingFromFocus = false
+        } else {
+            isUpdatingFromFocus = true
+            title = "All Nodes"
             isUpdatingFromFocus = false
         }
     }
@@ -112,7 +107,7 @@ public struct TabbedTreeView: View {
     public var body: some View {
         NavigationStack {
             mainContent
-                .navigationTitle(currentTab?.viewModel.currentFocusedNode?.title ?? "All Nodes")
+                .navigationTitle(currentTab?.viewModel.focusedNode?.title ?? "All Nodes")
                 .toolbar {
                     toolbarContent
                 }

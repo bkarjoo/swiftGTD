@@ -22,7 +22,12 @@ public class TreeViewModel: ObservableObject, Identifiable {
     @Published var isLoading = false
     @Published var expandedNodes = Set<String>()
     @Published var selectedNodeId: String?
-    @Published var focusedNodeId: String? = nil
+    @Published var focusedNodeId: String? = nil {
+        didSet {
+            resolveFocusedNode()
+        }
+    }
+    @Published private(set) var focusedNode: Node? = nil
     @Published var isEditing: Bool = false
     @Published var showingCreateDialog = false
     @Published var createNodeType = ""
@@ -134,6 +139,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
 
         self.nodeChildren = childrenMap
+
+        // Resolve focused node after cache update
+        resolveFocusedNode()
 
         // Validate consistency in debug builds
         #if DEBUG
@@ -1003,6 +1011,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
         if let nodeId = nodeId {
             expandedNodes.insert(nodeId) // Always expand when focusing
         }
+    }
+
+    /// Resolve the focused node from the cache
+    private func resolveFocusedNode() {
+        focusedNode = focusedNodeId.flatMap { nodeCache[$0] }
     }
 
     /// Expand a node
