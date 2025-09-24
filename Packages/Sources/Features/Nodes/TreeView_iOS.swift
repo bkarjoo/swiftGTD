@@ -21,8 +21,8 @@ public struct TreeView_iOS: View {
                 // Breadcrumb navigation
                 if viewModel.focusedNodeId != nil {
                     BreadcrumbBar(
-                        focusedNode: viewModel.currentFocusedNode,
-                        parentChain: viewModel.currentFocusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
+                        focusedNode: viewModel.focusedNode,
+                        parentChain: viewModel.focusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
                         onNodeTap: { nodeId in
                             viewModel.setFocusedNode(nodeId)
                         },
@@ -50,7 +50,7 @@ public struct TreeView_iOS: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle(viewModel.currentFocusedNode?.title ?? "All Nodes")
+            .navigationTitle(viewModel.focusedNode?.title ?? "All Nodes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 TreeToolbar(viewModel: viewModel)
@@ -315,7 +315,7 @@ private struct CreateNodeSheet: View {
                         .textInputAutocapitalization(.sentences)
                 }
                 
-                if let focusedNode = viewModel.currentFocusedNode {
+                if let focusedNode = viewModel.focusedNode {
                     Section {
                         Label("Creating under: \(focusedNode.title)", systemImage: "folder")
                             .foregroundColor(.secondary)

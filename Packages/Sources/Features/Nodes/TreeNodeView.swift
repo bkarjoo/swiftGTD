@@ -153,16 +153,12 @@ public struct TreeNodeView: View {
                     if node.nodeType != "note" {
                         Button(action: {
                             // logger.log("🔘 Focus button clicked for node: \(node.id)", category: "TreeNodeView")
-                            // Focus on this node
+                            // Always route through the view model's focusOnNode method
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
                             } else {
-                                // Batch the focus and expand updates
-                                withTransaction(Transaction(animation: nil)) {
-                                    focusedNodeId = node.id
-                                    expandedNodes.insert(node.id)
-                                }
-                                NotificationCenter.default.post(name: Notification.Name("focusChanged"), object: nil)
+                                // This should not happen in practice as the callback is always provided
+                                assertionFailure("onFocusNode callback not provided")
                             }
                         }) {
                             Label("Focus", systemImage: "arrow.right.circle")
@@ -408,26 +404,12 @@ public struct TreeNodeView: View {
                         } else {
                             // Focus on this node (make it the new root)
                             // logger.log("🎯 Title clicked - focusing on node: \(node.id)", category: "TreeNodeView")
+                            // Always route through the view model's focusOnNode method
                             if let onFocusNode = onFocusNode {
                                 onFocusNode(node)
                             } else {
-                                // Batch all the state updates
-                                withTransaction(Transaction(animation: nil)) {
-                                    focusedNodeId = node.id
-                                    // Auto-expand when focusing
-                                    expandedNodes.insert(node.id)
-
-                                    // If selected node is not within this focused branch, move selection to focused node
-                                    if let currentSelected = selectedNodeId {
-                                        if !isNodeWithinBranch(currentSelected, branchRoot: node.id) {
-                                            logger.log("🎯 Moving selection to focused node as current selection is outside branch", category: "TreeNodeView")
-                                            selectedNodeId = node.id
-                                        }
-                                    } else {
-                                        // No selection, select the focused node
-                                        selectedNodeId = node.id
-                                    }
-                                }
+                                // This should not happen in practice as the callback is always provided
+                                assertionFailure("onFocusNode callback not provided")
                             }
 
                             // SMART FOLDER RULE 3: Execute rule when focusing via title click

@@ -64,11 +64,6 @@ public class TreeViewModel: ObservableObject, Identifiable {
         
     }
     
-    var currentFocusedNode: Node? {
-        guard let focusedId = focusedNodeId else { return nil }
-        return nodeCache[focusedId]
-    }
-    
     func getRootNodes() -> [Node] {
         let roots = allNodes.filter { $0.parentId == nil || $0.parentId == "" }
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -1005,7 +1000,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
         selectedNodeId = nodeId
     }
 
-    /// Set the focused node
+    /// Low-level setter for focused node ID - does NOT select the node
+    /// For user-initiated focus actions, use focusOnNode(_:) instead which handles selection
+    /// This is primarily for programmatic focus changes (e.g., tab restoration, keyboard navigation)
     func setFocusedNode(_ nodeId: String?) {
         focusedNodeId = nodeId
         if let nodeId = nodeId {
@@ -1082,6 +1079,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     func focusOnNode(_ node: Node) {
         batchUI {
             focusedNodeId = node.id
+            selectedNodeId = node.id  // Also select when focusing
             var expanded = expandedNodes
             expanded.insert(node.id)
             expandedNodes = expanded

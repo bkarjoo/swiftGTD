@@ -23,8 +23,8 @@ public struct TreeView_macOS: View {
             VStack(spacing: 0) {
                 if viewModel.focusedNodeId != nil {
                     BreadcrumbBar(
-                        focusedNode: viewModel.currentFocusedNode,
-                        parentChain: viewModel.currentFocusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
+                        focusedNode: viewModel.focusedNode,
+                        parentChain: viewModel.focusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
                         onNodeTap: { nodeId in
                             viewModel.setFocusedNode(nodeId)
                         },
