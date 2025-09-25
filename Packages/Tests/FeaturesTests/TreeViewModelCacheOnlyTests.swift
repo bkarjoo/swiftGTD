@@ -90,7 +90,7 @@ final class TreeViewModelCacheOnlyTests: XCTestCase {
         viewModel.updateNodesFromDataManager(initialNodes)
 
         viewModel.focusedNodeId = "A"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Alpha")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Alpha")
 
         // Update with different nodes
         let updatedNodes = [
@@ -101,9 +101,9 @@ final class TreeViewModelCacheOnlyTests: XCTestCase {
 
         // Check cache was updated
         viewModel.focusedNodeId = "A"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Alpha Updated", "Node A should be updated")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Alpha Updated", "Node A should be updated")
 
         viewModel.focusedNodeId = "B"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Beta", "Node B should be added")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Beta", "Node B should be added")
     }
 }

@@ -204,8 +204,8 @@ class TreeViewNavigationTests: XCTestCase {
         // Then
         // This tests that focus mode is set, actual visibility would be in view tests
         XCTAssertEqual(viewModel.focusedNodeId, "2")
-        XCTAssertNotNil(viewModel.currentFocusedNode)
-        XCTAssertEqual(viewModel.currentFocusedNode?.id, "2")
+        XCTAssertNotNil(viewModel.focusedNode)
+        XCTAssertEqual(viewModel.focusedNode?.id, "2")
     }
 
     // MARK: - Helper Methods
