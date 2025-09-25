@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import Networking
 @testable import Models
+@testable import Core  // For KeychainManager
 
 final class APIClientDITests: XCTestCase {
     

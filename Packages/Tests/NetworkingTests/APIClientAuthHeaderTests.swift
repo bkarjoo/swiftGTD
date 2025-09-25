@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import Networking
 @testable import Models
+@testable import Core  // For KeychainManager
 
 /// Tests for APIClient Authorization header handling
 final class APIClientAuthHeaderTests: XCTestCase {
@@ -41,14 +42,16 @@ final class APIClientAuthHeaderTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        // Clear any existing token
+        // Clear any existing token from both UserDefaults and Keychain
         UserDefaults.standard.removeObject(forKey: "auth_token")
+        _ = KeychainManager.shared.deleteToken()  // Clear Keychain token
         HeaderCapturingURLProtocol.capturedHeaders = nil
     }
     
     override func tearDown() {
         // Clean up
         UserDefaults.standard.removeObject(forKey: "auth_token")
+        _ = KeychainManager.shared.deleteToken()  // Clear Keychain token
         HeaderCapturingURLProtocol.capturedHeaders = nil
         super.tearDown()
     }

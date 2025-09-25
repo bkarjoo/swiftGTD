@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import Networking
 @testable import Models
+@testable import Core  // For KeychainManager
 
 /// Tests for APIClient HTTP error mapping
 final class APIClientHTTPErrorTests: XCTestCase {
@@ -52,6 +53,7 @@ final class APIClientHTTPErrorTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
+        _ = KeychainManager.shared.deleteToken()  // Clear any existing token
         // Reset mock state
         ErrorResponseURLProtocol.mockStatusCode = 200
         ErrorResponseURLProtocol.mockResponseData = nil

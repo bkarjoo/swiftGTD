@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import Networking
 @testable import Models
+@testable import Core  // For KeychainManager
 
 /// Simplified toggle encoding tests focused on verifying request body encoding
 final class APIClientToggleEncodingSimpleTests: XCTestCase {

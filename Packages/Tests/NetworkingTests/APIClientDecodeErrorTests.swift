@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import Networking
 @testable import Models
+@testable import Core  // For KeychainManager
 
 /// Tests for APIClient decode error handling with malformed JSON
 final class APIClientDecodeErrorTests: XCTestCase {
@@ -46,6 +47,7 @@ final class APIClientDecodeErrorTests: XCTestCase {
         super.setUp()
         MalformedResponseURLProtocol.mockResponseData = nil
         MalformedResponseURLProtocol.mockStatusCode = 200
+        _ = KeychainManager.shared.deleteToken()  // Clear any existing token
     }
     
     // MARK: - Malformed JSON Tests
