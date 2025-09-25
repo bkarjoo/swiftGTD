@@ -30,13 +30,13 @@ final class TreeViewModelCacheOnlyTests: XCTestCase {
         // Directly update the cache
         viewModel.updateNodesFromDataManager(nodes)
 
-        // Test that currentFocusedNode lookups are fast
+        // Test that focusedNode lookups are fast
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Perform 1000 lookups
         for i in 0..<1000 {
             viewModel.focusedNodeId = "node-\(i)"
-            _ = viewModel.currentFocusedNode
+            _ = viewModel.focusedNode
         }
 
         let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
@@ -63,8 +63,8 @@ final class TreeViewModelCacheOnlyTests: XCTestCase {
 
         // Test focused node lookup
         viewModel.focusedNodeId = "1"
-        XCTAssertNotNil(viewModel.currentFocusedNode, "Should find node 1")
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "One")
+        XCTAssertNotNil(viewModel.focusedNode, "Should find node 1")
+        XCTAssertEqual(viewModel.focusedNode?.title, "One")
 
         viewModel.focusedNodeId = "2"
         XCTAssertNotNil(viewModel.focusedNode, "Should find node 2")

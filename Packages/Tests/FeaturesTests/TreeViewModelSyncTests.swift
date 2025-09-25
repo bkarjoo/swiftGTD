@@ -72,25 +72,25 @@ final class TreeViewModelSyncTests: XCTestCase {
         mockDataManager.mockNodes = [node1, node2, node3]
         mockDataManager.nodes = mockDataManager.mockNodes
 
-        // Test that currentFocusedNode uses cache
+        // Test that focusedNode uses cache
         viewModel.focusedNodeId = "test-1"
-        XCTAssertNotNil(viewModel.currentFocusedNode)
-        XCTAssertEqual(viewModel.currentFocusedNode?.id, "test-1")
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Test Node 1")
+        XCTAssertNotNil(viewModel.focusedNode)
+        XCTAssertEqual(viewModel.focusedNode?.id, "test-1")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Test Node 1")
 
         viewModel.focusedNodeId = "test-2"
-        XCTAssertNotNil(viewModel.currentFocusedNode)
-        XCTAssertEqual(viewModel.currentFocusedNode?.id, "test-2")
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Test Node 2")
+        XCTAssertNotNil(viewModel.focusedNode)
+        XCTAssertEqual(viewModel.focusedNode?.id, "test-2")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Test Node 2")
 
         viewModel.focusedNodeId = "test-3"
-        XCTAssertNotNil(viewModel.currentFocusedNode)
-        XCTAssertEqual(viewModel.currentFocusedNode?.id, "test-3")
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Test Node 3")
+        XCTAssertNotNil(viewModel.focusedNode)
+        XCTAssertEqual(viewModel.focusedNode?.id, "test-3")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Test Node 3")
 
         // Test with non-existent node
         viewModel.focusedNodeId = "non-existent"
-        XCTAssertNil(viewModel.currentFocusedNode)
+        XCTAssertNil(viewModel.focusedNode)
 
         // Test getRootNodes
         let rootNodes = viewModel.getRootNodes()
@@ -212,10 +212,10 @@ final class TreeViewModelSyncTests: XCTestCase {
 
         // Verify initial state
         viewModel.focusedNodeId = "node-1"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Initial Node 1")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Initial Node 1")
 
         viewModel.focusedNodeId = "node-2"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Initial Node 2")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Initial Node 2")
 
         // Update nodes with changed titles
         let updatedNode1 = Node(
@@ -256,13 +256,13 @@ final class TreeViewModelSyncTests: XCTestCase {
 
         // Verify cache is updated
         viewModel.focusedNodeId = "node-1"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Updated Node 1")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Updated Node 1")
 
         viewModel.focusedNodeId = "node-2"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Updated Node 2")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Updated Node 2")
 
         viewModel.focusedNodeId = "node-3"
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "New Node 3")
+        XCTAssertEqual(viewModel.focusedNode?.title, "New Node 3")
 
         // Verify allNodes count
         XCTAssertEqual(viewModel.allNodes.count, 3)

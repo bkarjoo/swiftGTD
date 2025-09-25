@@ -47,18 +47,18 @@ final class TreeViewModelNodeCacheTests: XCTestCase {
         // Assert - Verify nodes are accessible
         XCTAssertEqual(treeViewModel.allNodes.count, 2)
 
-        // Test that currentFocusedNode uses cache (O(1) lookup)
+        // Test that focusedNode uses cache (O(1) lookup)
         treeViewModel.focusedNodeId = "test-1"
-        XCTAssertNotNil(treeViewModel.currentFocusedNode)
-        XCTAssertEqual(treeViewModel.currentFocusedNode?.id, "test-1")
+        XCTAssertNotNil(treeViewModel.focusedNode)
+        XCTAssertEqual(treeViewModel.focusedNode?.id, "test-1")
 
         treeViewModel.focusedNodeId = "test-2"
-        XCTAssertNotNil(treeViewModel.currentFocusedNode)
-        XCTAssertEqual(treeViewModel.currentFocusedNode?.id, "test-2")
+        XCTAssertNotNil(treeViewModel.focusedNode)
+        XCTAssertEqual(treeViewModel.focusedNode?.id, "test-2")
 
         // Test with non-existent node
         treeViewModel.focusedNodeId = "non-existent"
-        XCTAssertNil(treeViewModel.currentFocusedNode)
+        XCTAssertNil(treeViewModel.focusedNode)
     }
 
     func testNodeCache_UpdatesWhenNodesChange() async throws {
@@ -82,8 +82,8 @@ final class TreeViewModelNodeCacheTests: XCTestCase {
 
         // Verify initial state
         treeViewModel.focusedNodeId = "node-1"
-        XCTAssertNotNil(treeViewModel.currentFocusedNode)
-        XCTAssertEqual(treeViewModel.currentFocusedNode?.title, "Initial Node")
+        XCTAssertNotNil(treeViewModel.focusedNode)
+        XCTAssertEqual(treeViewModel.focusedNode?.title, "Initial Node")
 
         // Act - Update nodes
         let updatedNode = Node(
@@ -115,11 +115,11 @@ final class TreeViewModelNodeCacheTests: XCTestCase {
 
         // Assert - Cache should be updated
         XCTAssertEqual(treeViewModel.allNodes.count, 2)
-        XCTAssertEqual(treeViewModel.currentFocusedNode?.title, "Updated Node")
+        XCTAssertEqual(treeViewModel.focusedNode?.title, "Updated Node")
 
         treeViewModel.focusedNodeId = "node-2"
-        XCTAssertNotNil(treeViewModel.currentFocusedNode)
-        XCTAssertEqual(treeViewModel.currentFocusedNode?.title, "New Node")
+        XCTAssertNotNil(treeViewModel.focusedNode)
+        XCTAssertEqual(treeViewModel.focusedNode?.title, "New Node")
     }
 
     func testGetParentChain_UsesNodeCache() async throws {
