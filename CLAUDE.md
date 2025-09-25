@@ -138,6 +138,28 @@ When significant platform differences exist:
 - Updated documentation
 - No duplicate refresh implementations
 
+## Performance Optimizations
+
+**Node Cache**
+- TreeViewModel maintains `nodeCache: [String: Node]` for O(1) lookups
+- Replaced all `allNodes.first(where:)` O(n) searches with cache lookups
+- Cache automatically updated when nodes change via DataManager subscription
+
+**Batch UI Updates**
+- Use `batchUI { }` to wrap multiple state changes in single transaction
+- Prevents multiple UI redraws for related changes
+- Composite intent methods like `selectAndFocus()` batch operations
+
+**State Persistence**
+- UIStateManager uses 1-second debounced saves instead of immediate writes
+- Reduces disk I/O when rapidly changing focus/selection
+- Subscriptions only created for active tab, not all tabs
+
+**Focus Behavior**
+- User actions route through `focusOnNode(_:)` which selects + focuses
+- Programmatic focus uses `setFocusedNode(_:)` without selection
+- Single source of truth: `@Published focusedNode` resolved from cache
+
 ## Key Methods and Their Purpose
 
 **TreeViewModel Methods**
@@ -146,6 +168,9 @@ When significant platform differences exist:
 - `refreshNode(nodeId)` - Targeted refresh of single node via DataManager
 - `handleKeyPress()` - Centralized keyboard handling for all shortcuts
 - `navigateToNode()` - Unified navigation logic for arrow keys
+- `focusOnNode(_:)` - User-initiated focus that also selects the node (single source of truth)
+- `setFocusedNode(_:)` - Low-level setter for programmatic focus without selection
+- `batchUI(_:)` - Batch multiple UI updates in single transaction for performance
 - `validateNodeConsistency()` - Debug-only validation of parent-child invariants
 
 **DataManager Methods**

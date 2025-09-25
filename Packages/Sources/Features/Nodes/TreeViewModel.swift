@@ -49,7 +49,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
     private var didLoad = false
 
     public init() {}
-    
+
+    /// Set the DataManager instance and subscribe to its node updates
     func setDataManager(_ manager: DataManager) {
         self.dataManager = manager
         
@@ -63,18 +64,21 @@ public class TreeViewModel: ObservableObject, Identifiable {
             .store(in: &cancellables)
         
     }
-    
+
+    /// Get all root nodes (nodes without a parent) sorted by sort order
     func getRootNodes() -> [Node] {
         let roots = allNodes.filter { $0.parentId == nil || $0.parentId == "" }
             .sorted { $0.sortOrder < $1.sortOrder }
         return roots
     }
-    
+
+    /// Get children of a specific node from the nodeChildren cache
     func getChildren(of nodeId: String) -> [Node] {
         let children = nodeChildren[nodeId] ?? []
         return children
     }
-    
+
+    /// Get the parent chain from root to the given node (excluding the node itself)
     func getParentChain(for node: Node) -> [Node] {
         var chain: [Node] = []
         var currentNode: Node? = node
@@ -90,7 +94,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
         
         return chain
     }
-    
+
+    /// Update local state from DataManager's nodes - maintains caches and derived state
     internal func updateNodesFromDataManager(_ nodes: [Node]) {
         // No need to set allNodes anymore, it's computed from dataManager
 
@@ -258,16 +263,19 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
     }
 
+    /// Update a single node from the server
     func updateSingleNode(nodeId: String) async {
         // Delegate to refreshNode for consistency
         await refreshNode(nodeId: nodeId)
     }
-    
+
+    /// Prepare to delete a node (shows confirmation dialog)
     func deleteNode(_ node: Node) {
         nodeToDelete = node
         showingDeleteAlert = true
     }
-    
+
+    /// Confirm and execute node deletion with all descendants
     func confirmDeleteNode() async {
         guard let node = nodeToDelete, let dataManager = dataManager else {
             logger.log("❌ No node to delete or no dataManager", category: "TreeViewModel")
@@ -350,7 +358,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         }
     }
-    
+
+    /// Toggle the completion status of a task node
     func toggleTaskStatus(_ node: Node) {
         
         guard let dataManager = dataManager else { 
@@ -368,7 +377,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         }
     }
-    
+
+    /// Update the title of a node
     func updateNodeTitle(nodeId: String, newTitle: String) async {
         guard let dataManager = dataManager else {
             logger.log("❌ No dataManager available", category: "TreeViewModel")
@@ -402,6 +412,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     // MARK: - Drag and Drop
 
+    /// Reorder nodes via drag and drop, updating sort orders for all affected siblings
     func performReorder(draggedNode: Node, targetNode: Node, position: DropPosition, message: String) async {
 
         // Get all siblings
@@ -489,11 +500,13 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     }
 
+    /// Show an alert message for drag and drop operations
     func showDropAlert(message: String) {
         dropAlertMessage = message
         showingDropAlert = true
     }
 
+    /// Create a new node with specified type, title, and optional parent
     func createNode(type: String, title: String, parentId: String?) async {
         guard let dataManager = dataManager else {
             logger.log("❌ No dataManager available", category: "TreeViewModel")
@@ -1181,6 +1194,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     // MARK: - Smart Folder Execution
 
+    /// Execute a smart folder's rules and display results
     func executeSmartFolder(_ node: Node) async {
 
         guard let dataManager = dataManager else {
@@ -1211,6 +1225,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     // MARK: - Template Instantiation
 
+    /// Create a new node hierarchy from a template
     func instantiateTemplate(_ template: Node) async {
 
         guard let dataManager = dataManager else {
