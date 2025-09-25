@@ -72,6 +72,14 @@ final class TreeViewModelSyncTests: XCTestCase {
         mockDataManager.mockNodes = [node1, node2, node3]
         mockDataManager.nodes = mockDataManager.mockNodes
 
+        // Wait a moment for the Combine subscription to propagate
+        // This is needed because the @Published nodes triggers updateNodesFromDataManager asynchronously
+        let expectation = XCTestExpectation(description: "Wait for nodes update")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+
         // Test that focusedNode uses cache
         viewModel.focusedNodeId = "test-1"
         XCTAssertNotNil(viewModel.focusedNode)
@@ -160,6 +168,13 @@ final class TreeViewModelSyncTests: XCTestCase {
         mockDataManager.mockNodes = [root, parent, child, grandchild]
         mockDataManager.nodes = mockDataManager.mockNodes
 
+        // Wait for async update to complete
+        let expectation2 = XCTestExpectation(description: "Wait for nodes update")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            expectation2.fulfill()
+        }
+        wait(for: [expectation2], timeout: 1.0)
+
         // Test getParentChain
         let parentChain = viewModel.getParentChain(for: grandchild)
         XCTAssertEqual(parentChain.count, 3)
@@ -210,6 +225,13 @@ final class TreeViewModelSyncTests: XCTestCase {
         mockDataManager.mockNodes = [node1, node2]
         mockDataManager.nodes = mockDataManager.mockNodes
 
+        // Wait for async update to complete
+        let initExpectation = XCTestExpectation(description: "Wait for initial nodes update")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            initExpectation.fulfill()
+        }
+        wait(for: [initExpectation], timeout: 1.0)
+
         // Verify initial state
         viewModel.focusedNodeId = "node-1"
         XCTAssertEqual(viewModel.focusedNode?.title, "Initial Node 1")
@@ -253,6 +275,13 @@ final class TreeViewModelSyncTests: XCTestCase {
         // Update with new nodes
         mockDataManager.mockNodes = [updatedNode1, updatedNode2, newNode3]
         mockDataManager.nodes = mockDataManager.mockNodes
+
+        // Wait for async update to complete
+        let updateExpectation = XCTestExpectation(description: "Wait for nodes update")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            updateExpectation.fulfill()
+        }
+        wait(for: [updateExpectation], timeout: 1.0)
 
         // Verify cache is updated
         viewModel.focusedNodeId = "node-1"
