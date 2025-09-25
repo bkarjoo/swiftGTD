@@ -67,11 +67,11 @@ final class TreeViewModelCacheOnlyTests: XCTestCase {
         XCTAssertEqual(viewModel.currentFocusedNode?.title, "One")
 
         viewModel.focusedNodeId = "2"
-        XCTAssertNotNil(viewModel.currentFocusedNode, "Should find node 2")
-        XCTAssertEqual(viewModel.currentFocusedNode?.title, "Two")
+        XCTAssertNotNil(viewModel.focusedNode, "Should find node 2")
+        XCTAssertEqual(viewModel.focusedNode?.title, "Two")
 
         viewModel.focusedNodeId = "999"
-        XCTAssertNil(viewModel.currentFocusedNode, "Should not find non-existent node")
+        XCTAssertNil(viewModel.focusedNode, "Should not find non-existent node")
 
         // Test that nodeChildren was built correctly
         XCTAssertNotNil(viewModel.nodeChildren["1"], "Node 1 should have children")
