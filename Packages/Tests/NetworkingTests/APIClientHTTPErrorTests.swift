@@ -110,10 +110,10 @@ final class APIClientHTTPErrorTests: XCTestCase {
             XCTFail("Should throw APIError.httpError(401)")
         } catch let error as APIError {
             switch error {
-            case .httpError(let code, _):
-                XCTAssertEqual(code, 401, "Should throw httpError with code 401")
+            case .unauthorized:
+                XCTAssertTrue(true, "Should throw unauthorized for 401")
             default:
-                XCTFail("Should throw httpError, but got: \(error)")
+                XCTFail("Should throw unauthorized, but got: \(error)")
             }
         } catch {
             XCTFail("Should throw APIError, but got: \(error)")

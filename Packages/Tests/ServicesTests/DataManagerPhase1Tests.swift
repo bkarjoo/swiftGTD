@@ -164,10 +164,12 @@ final class DataManagerPhase1Tests: XCTestCase {
         )
 
         // Act
-        _ = await dataManager.instantiateTemplate(templateId: templateId)
+        let result = await dataManager.instantiateTemplate(templateId: templateId)
 
-        // Assert
-        XCTAssertTrue(mockAPI.getAllNodesCalled, "Should trigger data sync after instantiation")
+        // Assert - Per CLAUDE.md, instantiateTemplate does not sync, caller handles refresh
+        XCTAssertNotNil(result, "Should return the new node")
+        XCTAssertTrue(mockAPI.instantiateTemplateCalled, "Should call API to instantiate template")
+        XCTAssertFalse(mockAPI.getAllNodesCalled, "Should NOT trigger data sync after instantiation (per architecture)")
     }
 
     // MARK: - Smart Folder Execution Tests

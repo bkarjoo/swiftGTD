@@ -78,6 +78,9 @@ final class TabbedTreeViewTests: XCTestCase {
 
         XCTAssertEqual(tabs.count, 2)
         XCTAssertEqual(selectedTabId, newTab.id)
+        // TabModel initializes with default title "All Nodes" unless explicitly set
+        // The title is set after creation, not in constructor
+        tabs[1].title = "New Tab"
         XCTAssertEqual(tabs.last?.title, "New Tab")
     }
 

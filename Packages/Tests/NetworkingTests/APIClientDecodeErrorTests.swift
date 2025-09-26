@@ -68,11 +68,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("Should throw DecodingError for malformed JSON")
-        } catch is DecodingError {
-            // Expected - malformed JSON should throw DecodingError
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+        } catch let error as APIError {
+            // Expected - malformed JSON should throw APIError with DecodingError
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -92,11 +97,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNode(id: "test-123")
             XCTFail("Should throw DecodingError for incomplete JSON")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -116,11 +126,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("Should throw DecodingError for wrong type")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -140,11 +155,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getCurrentUser()
             XCTFail("Should throw DecodingError for missing required fields")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected - User requires email and fullName
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -176,11 +196,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNode(id: "node-123")
             XCTFail("Should throw DecodingError for wrong field types")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected - sort_order must be an integer
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -200,11 +225,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("Should throw DecodingError for null instead of array")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -222,11 +252,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("Should throw DecodingError for empty response")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected - empty data is not valid JSON
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -250,11 +285,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("Should throw DecodingError for HTML response")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected - HTML is not JSON
-            XCTAssertTrue(true, "Correctly threw DecodingError")
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
         } catch {
-            XCTFail("Should throw DecodingError, but got: \(error)")
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
     }
     
@@ -314,8 +354,16 @@ final class APIClientDecodeErrorTests: XCTestCase {
         do {
             _ = try await apiClient.getNodes()
             XCTFail("First request should throw DecodingError")
-        } catch is DecodingError {
+        } catch let error as APIError {
             // Expected
+            switch error {
+            case .decodingError(let underlyingError):
+                XCTAssertTrue(underlyingError is DecodingError, "Should wrap DecodingError")
+            default:
+                XCTFail("Should throw APIError.decodingError, but got: \(error)")
+            }
+        } catch {
+            XCTFail("Should throw APIError.decodingError, but got: \(error)")
         }
         
         // Arrange - Second request with valid JSON
