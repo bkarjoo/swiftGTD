@@ -564,14 +564,12 @@ public class DataManager: ObservableObject {
                     await cacheManager.saveNodes(nodes)
                     logger.log("✅ Updated task completion status for: \(updatedNode.title)", category: "DataManager")
                 } else {
-                    logger.log("❌ Node \(updatedNode.id) NOT found in nodes array!", category: "DataManager")
-                    logger.log("   Node IDs in array: \(nodes.map { $0.id }.prefix(10))", category: "DataManager")
+                    logger.log("⚠️ Node \(updatedNode.id) not found in main array", category: "DataManager")
 
-                    // The node should exist in the main array, this is unexpected
-                    // Try to add it if it's truly missing
-                    nodes.append(updatedNode)
-                    await cacheManager.saveNodes(nodes)
-                    logger.log("➕ Added missing node to array", category: "DataManager")
+                    // This shouldn't happen - the node should exist in the main array
+                    // Do a targeted refresh to restore consistency
+                    logger.log("🔄 Performing targeted refresh for node \(updatedNode.id)", category: "DataManager")
+                    await refreshNode(updatedNode.id)
                 }
                 
                 return updatedNode

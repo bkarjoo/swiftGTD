@@ -362,9 +362,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
     /// Toggle the completion status of a task node
     func toggleTaskStatus(_ node: Node) {
         
-        guard let dataManager = dataManager else { 
-            logger.error("❌ No dataManager available - THIS IS THE PROBLEM!", category: "TreeViewModel")
-            return 
+        guard let dataManager = dataManager else {
+            logger.error("❌ No dataManager available", category: "TreeViewModel")
+            return
         }
         
         

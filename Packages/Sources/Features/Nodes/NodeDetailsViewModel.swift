@@ -542,4 +542,35 @@ public class NodeDetailsViewModel: ObservableObject {
 
         logger.log("✅ All fields reset to original values", category: "NodeDetailsViewModel")
     }
+
+    // MARK: - Task Operations
+
+    public func toggleTaskStatus() async {
+        guard let node = node else { return }
+
+        // Route through TreeViewModel if available to ensure smart folder results are updated
+        if let treeViewModel = treeViewModel {
+            // Use TreeViewModel's toggleTaskStatus which updates smart folder results
+            await treeViewModel.toggleTaskStatus(node)
+
+            // Reload the node to get updated state
+            await loadNode(nodeId: node.id)
+        } else {
+            // Fallback to direct DataManager call if no TreeViewModel
+            // (This won't update smart folder results, but at least toggles the task)
+            guard let dataManager = dataManager else { return }
+
+            if let updatedNode = await dataManager.toggleNodeCompletion(node) {
+                await MainActor.run {
+                    self.node = updatedNode
+                    self.originalNode = updatedNode
+
+                    // Update task status field
+                    if let taskData = updatedNode.taskData {
+                        self.taskStatus = taskData.status ?? "todo"
+                    }
+                }
+            }
+        }
+    }
 }

@@ -5,9 +5,11 @@ import Services
 
 public struct NodeDetailView: View {
     let node: Node
-    
-    public init(node: Node) {
+    let treeViewModel: TreeViewModel?
+
+    public init(node: Node, treeViewModel: TreeViewModel? = nil) {
         self.node = node
+        self.treeViewModel = treeViewModel
     }
     @EnvironmentObject var dataManager: DataManager
     @State private var isEditing = false
@@ -91,9 +93,14 @@ public struct NodeDetailView: View {
     
     private var taskCompletionButton: some View {
         Button(action: {
-            let manager = dataManager
             Task {
-                await manager.toggleNodeCompletion(node)
+                // Route through TreeViewModel if available to ensure smart folder results are updated
+                if let treeViewModel = treeViewModel {
+                    await treeViewModel.toggleTaskStatus(node)
+                } else {
+                    // Fallback to direct DataManager call (won't update smart folder results)
+                    await dataManager.toggleNodeCompletion(node)
+                }
             }
         }) {
             Image(systemName: node.taskData?.completedAt != nil ? "checkmark.circle.fill" : "circle")
