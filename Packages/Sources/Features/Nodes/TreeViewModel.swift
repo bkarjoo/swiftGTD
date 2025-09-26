@@ -372,6 +372,18 @@ public class TreeViewModel: ObservableObject, Identifiable {
             // Update backend - the DataManager subscription will handle the UI update
             if let updatedNode = await dataManager.toggleNodeCompletion(node) {
                 // The subscription to DataManager.nodes will automatically update our view
+                // But we also need to update smart folder results if this node is in them
+                await MainActor.run {
+                    // Update the node in any smart folder results
+                    for (parentId, children) in nodeChildren {
+                        if let index = children.firstIndex(where: { $0.id == updatedNode.id }) {
+                            var updatedChildren = children
+                            updatedChildren[index] = updatedNode
+                            nodeChildren[parentId] = updatedChildren
+                            logger.log("✅ Updated node in smart folder results", category: "TreeViewModel")
+                        }
+                    }
+                }
             } else {
                 logger.error("❌ toggleNodeCompletion returned nil", category: "TreeViewModel")
             }

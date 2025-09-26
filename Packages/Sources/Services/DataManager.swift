@@ -531,11 +531,14 @@ public class DataManager: ObservableObject {
     }
     
     public func toggleNodeCompletion(_ node: Node) async -> Node? {
-        
+
         guard node.nodeType == "task" else {
             logger.log("⚠️ Not a task node, returning nil", category: "DataManager")
             return nil
         }
+
+        logger.log("🔄 Toggling task: \(node.id) - \(node.title)", category: "DataManager")
+        logger.log("   Current status: \(node.taskData?.status ?? "unknown")", category: "DataManager")
         
         if networkMonitor.isConnected {
             // Online - toggle via API
@@ -551,13 +554,24 @@ public class DataManager: ObservableObject {
                 errorMessage = nil
                 
                 // Update local nodes array
-                if let index = nodes.firstIndex(where: { $0.id == node.id }) {
+                logger.log("📝 Looking for node \(updatedNode.id) in \(nodes.count) nodes", category: "DataManager")
+
+                if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
+                    logger.log("✅ Found node at index \(index)", category: "DataManager")
                     nodes[index] = updatedNode
-                    
+
                     // Update cache
                     await cacheManager.saveNodes(nodes)
+                    logger.log("✅ Updated task completion status for: \(updatedNode.title)", category: "DataManager")
                 } else {
-                    logger.log("⚠️ Node not found in local nodes array", category: "DataManager")
+                    logger.log("❌ Node \(updatedNode.id) NOT found in nodes array!", category: "DataManager")
+                    logger.log("   Node IDs in array: \(nodes.map { $0.id }.prefix(10))", category: "DataManager")
+
+                    // The node should exist in the main array, this is unexpected
+                    // Try to add it if it's truly missing
+                    nodes.append(updatedNode)
+                    await cacheManager.saveNodes(nodes)
+                    logger.log("➕ Added missing node to array", category: "DataManager")
                 }
                 
                 return updatedNode
