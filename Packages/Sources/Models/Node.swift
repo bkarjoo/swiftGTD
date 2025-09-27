@@ -18,6 +18,7 @@ public struct Node: Codable, Identifiable {
     public let noteData: NoteData?
     public let templateData: TemplateData?
     public let smartFolderData: SmartFolderData?
+    public let folderData: FolderData?
     
     public init(
         id: String,
@@ -34,7 +35,8 @@ public struct Node: Codable, Identifiable {
         taskData: TaskData? = nil,
         noteData: NoteData? = nil,
         templateData: TemplateData? = nil,
-        smartFolderData: SmartFolderData? = nil
+        smartFolderData: SmartFolderData? = nil,
+        folderData: FolderData? = nil
     ) {
         self.id = id
         self.title = title
@@ -51,6 +53,7 @@ public struct Node: Codable, Identifiable {
         self.noteData = noteData
         self.templateData = templateData
         self.smartFolderData = smartFolderData
+        self.folderData = folderData
     }
     
     enum CodingKeys: String, CodingKey {
@@ -69,6 +72,7 @@ public struct Node: Codable, Identifiable {
         case noteData = "note_data"
         case templateData = "template_data"
         case smartFolderData = "smart_folder_data"
+        case folderData = "folder_data"
     }
 }
 
@@ -150,6 +154,14 @@ public struct SmartFolderData: Codable {
         case ruleId = "rule_id"
         case autoRefresh = "auto_refresh"
         case description
+    }
+}
+
+public struct FolderData: Codable {
+    public let description: String?
+
+    public init(description: String? = nil) {
+        self.description = description
     }
 }
 

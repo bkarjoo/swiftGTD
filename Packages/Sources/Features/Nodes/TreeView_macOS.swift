@@ -13,107 +13,242 @@ public struct TreeView_macOS: View {
     @EnvironmentObject var dataManager: DataManager
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
+    @AppStorage("splitPaneThreshold") private var splitPaneThreshold = 900.0
+    @AppStorage("splitPanePosition") private var splitPanePosition = 0.4 // 40% for left pane
+    @AppStorage("enableSplitPane") private var enableSplitPane = true
+
+    @State private var showingSplitPane = false
+    @State private var dividerPosition: CGFloat = 0.4
+    @State private var isDraggingDivider = false
 
     public init(viewModel: TreeViewModel? = nil) {
         self.viewModel = viewModel ?? TreeViewModel()
     }
     
     public var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if viewModel.focusedNodeId != nil {
-                    BreadcrumbBar(
-                        focusedNode: viewModel.focusedNode,
-                        parentChain: viewModel.focusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
-                        onNodeTap: { nodeId in
-                            viewModel.setFocusedNode(nodeId)
-                        },
-                        onExitFocus: {
-                            viewModel.setFocusedNode(nil)
-                        }
-                    )
-                }
-                
-                ScrollViewReader { scrollProxy in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if viewModel.isLoading {
-                                LoadingView()
-                                    .padding()
-                            } else {
-                                TreeContent(
-                                    viewModel: viewModel,
-                                    fontSize: CGFloat(treeFontSize),
-                                    lineSpacing: CGFloat(treeLineSpacing)
-                                )
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    .onChange(of: viewModel.selectedNodeId) { newNodeId in
-                        guard let nodeId = newNodeId else { return }
+        GeometryReader { geometry in
+            let windowWidth = geometry.size.width
+            let shouldShowSplitPane = enableSplitPane && windowWidth >= splitPaneThreshold && viewModel.selectedNodeId != nil
 
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                scrollProxy.scrollTo(nodeId, anchor: nil)
+            if shouldShowSplitPane {
+                // Split pane mode
+                splitPaneLayout(windowWidth: windowWidth)
+                    .onAppear {
+                        dividerPosition = splitPanePosition
+                        showingSplitPane = true
+                    }
+                    .onDisappear {
+                        showingSplitPane = false
+                    }
+            } else {
+                // Regular mode with popup sheets
+                regularTreeView
+                    .onAppear {
+                        showingSplitPane = false
+                    }
+            }
+        }
+        // Common sheets that appear in both modes
+        .sheet(isPresented: $viewModel.showingCreateDialog) {
+            CreateNodeSheet(viewModel: viewModel)
+                .environmentObject(dataManager)
+        }
+        .sheet(isPresented: $viewModel.showingHelpWindow) {
+            KeyboardShortcutsHelpView()
+        }
+        .alert("Delete Node", isPresented: $viewModel.showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {
+                viewModel.nodeToDelete = nil
+            }
+
+            Button("Delete", role: .destructive) {
+                Task {
+                    await viewModel.confirmDeleteNode()
+                }
+            }
+            .keyboardShortcut(.defaultAction)
+        } message: {
+            if let node = viewModel.nodeToDelete {
+                Text("Delete \"\(node.title)\" and all its children?\n\nPress Return to delete, Escape to cancel")
+            } else {
+                Text("Delete this node and all its children?")
+            }
+        }
+        .alert("Drag & Drop", isPresented: $viewModel.showingDropAlert) {
+            Button("OK") { }
+        } message: {
+            Text(viewModel.dropAlertMessage)
+        }
+        .task {
+            viewModel.setDataManager(dataManager)
+            await viewModel.initialLoad()
+        }
+    }
+
+    private func splitPaneLayout(windowWidth: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            // Left pane - Tree view
+            treePane
+                .frame(width: windowWidth * dividerPosition)
+
+            // Divider
+            Rectangle()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 1)
+                .overlay(
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 8)
+                        .contentShape(Rectangle())
+                        .onHover { hovering in
+                            if hovering {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                )
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            let newPosition = (dividerPosition * windowWidth + value.translation.width) / windowWidth
+                            dividerPosition = min(max(0.2, newPosition), 0.8) // Keep between 20% and 80%
+                            splitPanePosition = dividerPosition
+                        }
+                        .onEnded { _ in
+                            isDraggingDivider = false
+                        }
+                )
+
+            // Right pane - Details/Editor
+            detailPane
+                .frame(width: windowWidth * (1 - dividerPosition))
+        }
+    }
+
+    private var regularTreeView: some View {
+        NavigationStack {
+            treePane
+                .sheet(item: $viewModel.showingNoteEditorForNode) { node in
+                    NoteEditorView(node: node) {
+                        await viewModel.refreshNodes()
+                    }
+                }
+                .sheet(item: $viewModel.showingDetailsForNode) { node in
+                    NodeDetailsView(nodeId: node.id, treeViewModel: viewModel)
+                }
+                .sheet(item: $viewModel.showingTagPickerForNode) { node in
+                    TagPickerView(node: node) {
+                        await viewModel.updateSingleNode(nodeId: node.id)
+                    }
+                }
+        }
+    }
+
+    private var treePane: some View {
+        VStack(spacing: 0) {
+            if viewModel.focusedNodeId != nil {
+                BreadcrumbBar(
+                    focusedNode: viewModel.focusedNode,
+                    parentChain: viewModel.focusedNode.map { viewModel.getParentChain(for: $0) } ?? [],
+                    onNodeTap: { nodeId in
+                        viewModel.setFocusedNode(nodeId)
+                    },
+                    onExitFocus: {
+                        viewModel.setFocusedNode(nil)
+                    }
+                )
+            }
+
+            ScrollViewReader { scrollProxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if viewModel.isLoading {
+                            LoadingView()
+                                .padding()
+                        } else {
+                            TreeContent(
+                                viewModel: viewModel,
+                                fontSize: CGFloat(treeFontSize),
+                                lineSpacing: CGFloat(treeLineSpacing)
+                            )
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .onChange(of: viewModel.selectedNodeId) { newNodeId in
+                    guard let nodeId = newNodeId else { return }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            scrollProxy.scrollTo(nodeId, anchor: nil)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(NSColor.controlBackgroundColor))
+        }
+        .navigationTitle("") // Title shown in tabs instead
+    }
+
+    private var detailPane: some View {
+        Group {
+            if let selectedNodeId = viewModel.selectedNodeId,
+               let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedNodeId }) {
+                VStack(spacing: 0) {
+                    // Detail pane header
+                    HStack {
+                        Image(systemName: Icons.nodeIcon(for: selectedNode.nodeType))
+                            .foregroundColor(Icons.nodeColor(for: selectedNode.nodeType))
+                        Text(selectedNode.title)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color(NSColor.windowBackgroundColor))
+
+                    Divider()
+
+                    // Content based on node type
+                    Group {
+                        if selectedNode.nodeType == "note" {
+                            // Embedded note editor
+                            NoteEditorView(
+                                node: selectedNode,
+                                embeddedMode: true
+                            ) {
+                                await viewModel.refreshNodes()
+                            }
+                        } else {
+                            // Node details view
+                            ScrollView {
+                                NodeDetailsView(
+                                    nodeId: selectedNode.id,
+                                    treeViewModel: viewModel
+                                )
+                                .padding()
                             }
                         }
                     }
+                }
+                .background(Color(NSColor.controlBackgroundColor))
+                .id(selectedNodeId) // Force view refresh when selection changes
+            } else {
+                // Empty state
+                VStack {
+                    Spacer()
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("Select a node to view details")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
-            }
-            .navigationTitle("") // Title shown in tabs instead
-            // Toolbar is managed by TabbedTreeView
-            .sheet(isPresented: $viewModel.showingCreateDialog) {
-                CreateNodeSheet(viewModel: viewModel)
-                    .environmentObject(dataManager)
-            }
-            .sheet(item: $viewModel.showingNoteEditorForNode) { node in
-                NoteEditorView(node: node) {
-                    await viewModel.refreshNodes()
-                }
-            }
-            .sheet(item: $viewModel.showingDetailsForNode) { node in
-                NodeDetailsView(nodeId: node.id, treeViewModel: viewModel)
-            }
-            .sheet(item: $viewModel.showingTagPickerForNode) { node in
-                TagPickerView(node: node) {
-                    await viewModel.updateSingleNode(nodeId: node.id)
-                }
-            }
-            .sheet(isPresented: $viewModel.showingHelpWindow) {
-                KeyboardShortcutsHelpView()
-            }
-            .alert("Delete Node", isPresented: $viewModel.showingDeleteAlert) {
-                Button("Cancel", role: .cancel) {
-                    viewModel.nodeToDelete = nil
-                }
-
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await viewModel.confirmDeleteNode()
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-            } message: {
-                if let node = viewModel.nodeToDelete {
-                    Text("Delete \"\(node.title)\" and all its children?\n\nPress Return to delete, Escape to cancel")
-                } else {
-                    Text("Delete this node and all its children?")
-                }
-            }
-            .alert("Drag & Drop", isPresented: $viewModel.showingDropAlert) {
-                Button("OK") { }
-            } message: {
-                Text(viewModel.dropAlertMessage)
-            }
-            .task {
-                viewModel.setDataManager(dataManager)
-                await viewModel.initialLoad()
-
-                // Skip initial selection - let tabs manage their own selection
-                // Skip initial selection - let tabs manage their own selection
             }
         }
     }

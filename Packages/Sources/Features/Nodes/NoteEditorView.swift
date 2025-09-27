@@ -21,6 +21,7 @@ private let logger = Logger.shared
 /// - Platform-specific styling
 public struct NoteEditorView: View {
     let node: Node
+    let embeddedMode: Bool
     let onDismiss: () async -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -36,6 +37,12 @@ public struct NoteEditorView: View {
     @State private var showingHelp = false
     @FocusState private var isTextEditorFocused: Bool
 
+    public init(node: Node, embeddedMode: Bool = false, onDismiss: @escaping () async -> Void = { }) {
+        self.node = node
+        self.embeddedMode = embeddedMode
+        self.onDismiss = onDismiss
+    }
+
     enum EditMode {
         case active
         case inactive
@@ -43,16 +50,22 @@ public struct NoteEditorView: View {
 
     public var body: some View {
         Group {
-            #if os(iOS)
-            NavigationView {
+            if embeddedMode {
+                // In embedded mode, no navigation wrapper or size constraints
                 noteEditorContent
+            } else {
+                // Regular modal mode
+                #if os(iOS)
+                NavigationView {
+                    noteEditorContent
+                }
+                .navigationViewStyle(StackNavigationViewStyle())
+                #else
+                noteEditorContent
+                    .frame(minWidth: 700, idealWidth: 900, maxWidth: .infinity,
+                           minHeight: 500, idealHeight: 700, maxHeight: .infinity)
+                #endif
             }
-            .navigationViewStyle(StackNavigationViewStyle())
-            #else
-            noteEditorContent
-                .frame(minWidth: 700, idealWidth: 900, maxWidth: .infinity,
-                       minHeight: 500, idealHeight: 700, maxHeight: .infinity)
-            #endif
         }
         .onAppear {
             loadNoteContent()
@@ -73,10 +86,12 @@ public struct NoteEditorView: View {
         VStack(spacing: 0) {
             // Header with close button and title
             HStack {
-                Text(node.title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
+                if !embeddedMode {
+                    Text(node.title)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                }
 
                 Spacer()
 
@@ -120,17 +135,19 @@ public struct NoteEditorView: View {
                         helpContent
                     }
 
-                    Button(action: {
-                        logger.log("🔙 Closing note editor", category: "NoteEditor")
-                        Task {
-                            await onDismiss()
-                            dismiss()
+                    if !embeddedMode {
+                        Button(action: {
+                            logger.log("🔙 Closing note editor", category: "NoteEditor")
+                            Task {
+                                await onDismiss()
+                                dismiss()
+                            }
+                        }) {
+                            Label("Close", systemImage: "xmark.circle")
+                                .labelStyle(.iconOnly)
                         }
-                    }) {
-                        Label("Close", systemImage: "xmark.circle")
-                            .labelStyle(.iconOnly)
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
                 }
             }
             .padding()

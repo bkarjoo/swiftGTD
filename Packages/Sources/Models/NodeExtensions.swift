@@ -28,7 +28,8 @@ public extension Node {
         taskData: TaskData? = nil,
         noteData: NoteData? = nil,
         templateData: TemplateData? = nil,
-        smartFolderData: SmartFolderData? = nil
+        smartFolderData: SmartFolderData? = nil,
+        folderData: FolderData? = nil
     ) {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -48,13 +49,15 @@ public extension Node {
         self.noteData = noteData
         self.templateData = templateData
         self.smartFolderData = smartFolderData
+        self.folderData = folderData
     }
     
     /// Create a copy with updated fields (for offline updates)
     func copyWith(
         title: String? = nil,
         updatedAt: Date? = nil,
-        taskData: TaskData? = nil
+        taskData: TaskData? = nil,
+        folderData: FolderData? = nil
     ) -> Node {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -74,7 +77,8 @@ public extension Node {
             taskData: taskData ?? self.taskData,
             noteData: self.noteData,
             templateData: self.templateData,
-            smartFolderData: self.smartFolderData
+            smartFolderData: self.smartFolderData,
+            folderData: folderData ?? self.folderData
         )
     }
     

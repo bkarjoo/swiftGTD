@@ -110,7 +110,7 @@ public class DataManager: ObservableObject {
                 
                 switch type {
                 case "folder":
-                    createdNode = try await api.createFolder(title: title, parentId: parentId)
+                    createdNode = try await api.createFolder(title: title, parentId: parentId, description: content)
                 case "task":
                     createdNode = try await api.createTask(title: title, parentId: parentId, description: content)
                 case "note":
@@ -169,6 +169,17 @@ public class DataManager: ObservableObject {
                         completedAt: nil,
                         archived: false
                     )
+                )
+            case "folder":
+                newNode = Node(
+                    id: tempId,
+                    title: title,
+                    nodeType: type,
+                    parentId: parentId,
+                    sortOrder: maxSortOrder + 1000,
+                    createdAt: Date(),
+                    updatedAt: Date(),
+                    folderData: FolderData(description: content)
                 )
             case "note":
                 newNode = Node(
@@ -264,7 +275,10 @@ public class DataManager: ObservableObject {
                     body: update.noteData?.body
                 ) : oldNode.noteData,
                 templateData: oldNode.templateData,  // Template data preserved from original
-                smartFolderData: oldNode.smartFolderData  // Smart folder data preserved from original
+                smartFolderData: oldNode.smartFolderData,  // Smart folder data preserved from original
+                folderData: update.folderData != nil ? FolderData(
+                    description: update.folderData?.description
+                ) : oldNode.folderData
             )
 
             // Update local array optimistically

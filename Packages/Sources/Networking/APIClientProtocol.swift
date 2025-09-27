@@ -26,7 +26,7 @@ public protocol APIClientProtocol {
     func toggleTaskCompletion(nodeId: String, currentlyCompleted: Bool) async throws -> Node
     
     // Specialized node creation
-    func createFolder(title: String, parentId: String?) async throws -> Node
+    func createFolder(title: String, parentId: String?, description: String?) async throws -> Node
     func createTask(title: String, parentId: String?, description: String?) async throws -> Node
     func createNote(title: String, parentId: String?, body: String) async throws -> Node
     func createGenericNode(title: String, nodeType: String, parentId: String?) async throws -> Node

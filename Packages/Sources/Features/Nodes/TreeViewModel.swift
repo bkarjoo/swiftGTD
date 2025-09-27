@@ -28,6 +28,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
         }
     }
     @Published private(set) var focusedNode: Node? = nil
+    var selectedNode: Node? {
+        guard let selectedNodeId = selectedNodeId else { return nil }
+        return allNodes.first { $0.id == selectedNodeId }
+    }
     @Published var isEditing: Bool = false
     @Published var showingCreateDialog = false
     @Published var createNodeType = ""

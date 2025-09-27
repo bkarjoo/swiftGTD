@@ -45,6 +45,8 @@ struct NodeDetailsView_macOS: View {
                             templateDetailsSection
                         } else if viewModel.node?.nodeType == "smart_folder" {
                             smartFolderDetailsSection
+                        } else if viewModel.node?.nodeType == "folder" {
+                            folderDetailsSection
                         }
                         
                         metadataSection
@@ -149,7 +151,10 @@ struct NodeDetailsView_macOS: View {
                     
                     Button(action: {
                         logger.log("🔘 Parent picker button clicked", category: "NodeDetailsView")
-                        viewModel.showingParentPicker = true
+                        Task {
+                            await viewModel.loadAvailableParentsIfNeeded()
+                            viewModel.showingParentPicker = true
+                        }
                     }) {
                         HStack {
                             if let parentId = viewModel.parentId,
@@ -257,6 +262,25 @@ struct NodeDetailsView_macOS: View {
         }
     }
     
+    private var folderDetailsSection: some View {
+        GroupBox("Folder Details") {
+            VStack(alignment: .leading, spacing: 12) {
+                // Description
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Description")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextEditor(text: $viewModel.folderDescription)
+                        .frame(minHeight: 60)
+                        .font(.system(.body, design: .default))
+                        .onChange(of: viewModel.folderDescription) { newValue in
+                            viewModel.updateField(\.folderDescription, value: newValue)
+                        }
+                }
+            }
+        }
+    }
+
     private var smartFolderDetailsSection: some View {
         GroupBox("Smart Folder Settings") {
             VStack(alignment: .leading, spacing: 12) {

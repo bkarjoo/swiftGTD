@@ -9,7 +9,8 @@ public struct NodeUpdate: Codable {
     public let noteData: NoteDataUpdate?
     public let templateData: TemplateDataUpdate?
     public let smartFolderData: SmartFolderDataUpdate?
-    
+    public let folderData: FolderDataUpdate?
+
     enum CodingKeys: String, CodingKey {
         case title
         case parentId = "parent_id"
@@ -18,6 +19,7 @@ public struct NodeUpdate: Codable {
         case noteData = "note_data"
         case templateData = "template_data"
         case smartFolderData = "smart_folder_data"
+        case folderData = "folder_data"
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -30,6 +32,7 @@ public struct NodeUpdate: Codable {
         try container.encodeIfPresent(noteData, forKey: .noteData)
         try container.encodeIfPresent(templateData, forKey: .templateData)
         try container.encodeIfPresent(smartFolderData, forKey: .smartFolderData)
+        try container.encodeIfPresent(folderData, forKey: .folderData)
     }
     
     public init(
@@ -39,7 +42,8 @@ public struct NodeUpdate: Codable {
         taskData: TaskDataUpdate? = nil,
         noteData: NoteDataUpdate? = nil,
         templateData: TemplateDataUpdate? = nil,
-        smartFolderData: SmartFolderDataUpdate? = nil
+        smartFolderData: SmartFolderDataUpdate? = nil,
+        folderData: FolderDataUpdate? = nil
     ) {
         self.title = title
         self.parentId = parentId
@@ -48,6 +52,7 @@ public struct NodeUpdate: Codable {
         self.noteData = noteData
         self.templateData = templateData
         self.smartFolderData = smartFolderData
+        self.folderData = folderData
     }
 }
 
@@ -149,6 +154,15 @@ public struct SmartFolderDataUpdate: Codable {
     ) {
         self.ruleId = ruleId
         self.autoRefresh = autoRefresh
+        self.description = description
+    }
+}
+
+/// Update data for folder-specific fields
+public struct FolderDataUpdate: Codable {
+    public let description: String?
+
+    public init(description: String? = nil) {
         self.description = description
     }
 }

@@ -42,6 +42,9 @@ public class NodeDetailsViewModel: ObservableObject {
     @Published var smartFolderDescription: String = ""
     @Published var availableRules: [Rule] = []
     @Published var showingRulePicker = false
+
+    // Folder-specific fields
+    @Published var folderDescription: String = ""
     
     // UI State
     @Published var isLoading = false
@@ -127,14 +130,19 @@ public class NodeDetailsViewModel: ObservableObject {
                     self.smartFolderAutoRefresh = smartFolderData.autoRefresh ?? true
                     self.smartFolderDescription = smartFolderData.description ?? ""
                 }
-                
+
+                // Load folder-specific fields if it's a folder
+                if loadedNode.nodeType == "folder", let folderData = loadedNode.folderData {
+                    self.folderDescription = folderData.description ?? ""
+                }
+
                 self.hasChanges = false
                 logger.log("✅ Node loaded: \(loadedNode.title)", category: "NodeDetailsViewModel")
             }
-            
-            // Load available parents
-            await loadAvailableParents()
-            
+
+            // Don't load available parents here - lazy load when needed
+            // await loadAvailableParents()
+
             // Load available rules if it's a smart folder
             if loadedNode.nodeType == "smart_folder" {
                 await loadAvailableRules()
@@ -171,6 +179,13 @@ public class NodeDetailsViewModel: ObservableObject {
         }
     }
     
+    public func loadAvailableParentsIfNeeded() async {
+        // Only load if we haven't loaded yet
+        if availableParents.isEmpty {
+            await loadAvailableParents()
+        }
+    }
+
     private func loadAvailableParents() async {
         logger.log("📞 Loading available parents", category: "NodeDetailsViewModel")
         
@@ -304,6 +319,12 @@ public class NodeDetailsViewModel: ObservableObject {
                         smartFolderAutoRefresh != (smartFolderData.autoRefresh ?? true) ||
                         smartFolderDescription != (smartFolderData.description ?? "")
         }
+
+        // Check folder-specific fields if it's a folder
+        if originalNode.nodeType == "folder", let folderData = originalNode.folderData {
+            hasChanges = hasChanges ||
+                        folderDescription != (folderData.description ?? "")
+        }
         
         logger.log("🔄 Has changes: \(hasChanges)", category: "NodeDetailsViewModel")
     }
@@ -408,7 +429,17 @@ public class NodeDetailsViewModel: ObservableObject {
             } else {
                 smartFolderDataUpdate = nil
             }
-            
+
+            // Create folder data update if it's a folder
+            let folderDataUpdate: FolderDataUpdate?
+            if node.nodeType == "folder" {
+                folderDataUpdate = FolderDataUpdate(
+                    description: folderDescription.isEmpty ? nil : folderDescription
+                )
+            } else {
+                folderDataUpdate = nil
+            }
+
             let nodeUpdate = NodeUpdate(
                 title: title,
                 parentId: parentId,
@@ -416,7 +447,8 @@ public class NodeDetailsViewModel: ObservableObject {
                 taskData: taskDataUpdate,
                 noteData: noteDataUpdate,
                 templateData: templateDataUpdate,
-                smartFolderData: smartFolderDataUpdate
+                smartFolderData: smartFolderDataUpdate,
+                folderData: folderDataUpdate
             )
             
             let updatedNode = try await dataManager.updateNode(id: node.id, update: nodeUpdate)
@@ -482,7 +514,8 @@ public class NodeDetailsViewModel: ObservableObject {
                         taskData: currentNode.taskData,
                         noteData: currentNode.noteData,
                         templateData: currentNode.templateData,
-                        smartFolderData: currentNode.smartFolderData
+                        smartFolderData: currentNode.smartFolderData,
+                        folderData: currentNode.folderData
                     )
                 }
 
@@ -536,6 +569,11 @@ public class NodeDetailsViewModel: ObservableObject {
             smartFolderRuleId = smartFolderData.ruleId
             smartFolderAutoRefresh = smartFolderData.autoRefresh ?? true
             smartFolderDescription = smartFolderData.description ?? ""
+        }
+
+        // Reset folder-specific fields if it's a folder
+        if originalNode.nodeType == "folder", let folderData = originalNode.folderData {
+            folderDescription = folderData.description ?? ""
         }
         
         hasChanges = false

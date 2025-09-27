@@ -37,6 +37,8 @@ struct NodeDetailsView_iOS: View {
                             templateDetailsSection
                         } else if node.nodeType == "smart_folder" {
                             smartFolderDetailsSection
+                        } else if node.nodeType == "folder" {
+                            folderDetailsSection
                         }
                         
                         metadataSection
@@ -129,7 +131,10 @@ struct NodeDetailsView_iOS: View {
             // Parent
             Button(action: {
                 logger.log("🔘 Parent picker button tapped", category: "NodeDetailsView")
-                viewModel.showingParentPicker = true
+                Task {
+                    await viewModel.loadAvailableParentsIfNeeded()
+                    viewModel.showingParentPicker = true
+                }
             }) {
                 HStack {
                     Text("Parent")
@@ -218,6 +223,22 @@ struct NodeDetailsView_iOS: View {
         }
     }
     
+    private var folderDetailsSection: some View {
+        Section("Folder Details") {
+            // Description
+            VStack(alignment: .leading) {
+                Text("Description")
+                    .foregroundColor(.secondary)
+                    .font(.footnote)
+                TextEditor(text: $viewModel.folderDescription)
+                    .frame(minHeight: 80)
+                    .onChange(of: viewModel.folderDescription) { newValue in
+                        viewModel.updateField(\.folderDescription, value: newValue)
+                    }
+            }
+        }
+    }
+
     private var smartFolderDetailsSection: some View {
         Section("Smart Folder Settings") {
             // Description

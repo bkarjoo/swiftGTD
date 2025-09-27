@@ -102,9 +102,10 @@ public extension APIClient {
         )
     }
     
-    func createFolder(title: String, parentId: String? = nil) async throws -> Node {
+    func createFolder(title: String, parentId: String? = nil, description: String? = nil) async throws -> Node {
         // Validate input
         try InputValidator.validateTitle(title)
+        try InputValidator.validateDescription(description)
         if let parentId = parentId {
             try InputValidator.validateNodeId(parentId)
         }
@@ -114,25 +115,32 @@ public extension APIClient {
             let nodeType: String
             let parentId: String?
             let sortOrder: Int
-            
+            let folderData: FolderDataCreate?
+
             enum CodingKeys: String, CodingKey {
                 case title
                 case nodeType = "node_type"
                 case parentId = "parent_id"
                 case sortOrder = "sort_order"
+                case folderData = "folder_data"
             }
         }
-        
+
+        struct FolderDataCreate: Codable {
+            let description: String?
+        }
+
         let folderRequest = FolderCreateRequest(
             title: InputValidator.sanitizeTitle(title),
             nodeType: "folder",
             parentId: parentId,
-            sortOrder: 1000
+            sortOrder: 1000,
+            folderData: description != nil ? FolderDataCreate(description: description) : nil
         )
-        
+
         let encoder = JSONEncoder()
         let body = try encoder.encode(folderRequest)
-        
+
         return try await makeRequest(
             endpoint: "/nodes/",
             method: "POST",
