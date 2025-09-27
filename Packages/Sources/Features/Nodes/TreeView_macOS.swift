@@ -226,7 +226,8 @@ public struct TreeView_macOS: View {
                             ScrollView {
                                 NodeDetailsView(
                                     nodeId: selectedNode.id,
-                                    treeViewModel: viewModel
+                                    treeViewModel: viewModel,
+                                    embeddedMode: true
                                 )
                                 .padding()
                             }

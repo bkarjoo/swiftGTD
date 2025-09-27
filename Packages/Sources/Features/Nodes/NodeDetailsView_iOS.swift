@@ -26,9 +26,7 @@ struct NodeDetailsView_iOS: View {
                     }
                 } else if let node = viewModel.node {
                     Form {
-                        basicInformationSection
-                        
-                        // Type-specific sections
+                        // Type-specific sections FIRST (descriptions are important)
                         if node.nodeType == "task" {
                             taskDetailsSection
                         } else if node.nodeType == "note" {
@@ -40,7 +38,9 @@ struct NodeDetailsView_iOS: View {
                         } else if node.nodeType == "folder" {
                             folderDetailsSection
                         }
-                        
+
+                        basicInformationSection
+
                         metadataSection
                     }
                 } else {
@@ -224,14 +224,20 @@ struct NodeDetailsView_iOS: View {
     }
     
     private var folderDetailsSection: some View {
-        Section("Folder Details") {
-            // Description
-            VStack(alignment: .leading) {
+        Section("Folder Description") {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Description")
-                    .foregroundColor(.secondary)
-                    .font(.footnote)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+
                 TextEditor(text: $viewModel.folderDescription)
-                    .frame(minHeight: 80)
+                    .frame(minHeight: 150, idealHeight: 200, maxHeight: 400)
+                    .padding(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
                     .onChange(of: viewModel.folderDescription) { newValue in
                         viewModel.updateField(\.folderDescription, value: newValue)
                     }

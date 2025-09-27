@@ -7,9 +7,17 @@ import Services
 struct NodeDetailsView_macOS: View {
     let nodeId: String
     let treeViewModel: TreeViewModel?
+    let embeddedMode: Bool
     @StateObject private var viewModel = NodeDetailsViewModel()
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) var dismiss
+    @FocusState private var isFocused: Bool
+
+    init(nodeId: String, treeViewModel: TreeViewModel? = nil, embeddedMode: Bool = false) {
+        self.nodeId = nodeId
+        self.treeViewModel = treeViewModel
+        self.embeddedMode = embeddedMode
+    }
 
     private let logger = Logger.shared
 
@@ -34,9 +42,7 @@ struct NodeDetailsView_macOS: View {
             } else if viewModel.node != nil {
                 ScrollView {
                     VStack(spacing: 20) {
-                        basicInformationSection
-                        
-                        // Type-specific sections
+                        // Type-specific sections FIRST (descriptions are important)
                         if viewModel.node?.nodeType == "task" {
                             taskDetailsSection
                         } else if viewModel.node?.nodeType == "note" {
@@ -48,7 +54,9 @@ struct NodeDetailsView_macOS: View {
                         } else if viewModel.node?.nodeType == "folder" {
                             folderDetailsSection
                         }
-                        
+
+                        basicInformationSection
+
                         metadataSection
                     }
                     .padding(20)
@@ -118,12 +126,18 @@ struct NodeDetailsView_macOS: View {
                 logger.log("🔘 Save button clicked", category: "NodeDetailsView")
                 Task {
                     await viewModel.save()
-                    dismiss()
+                    if !embeddedMode {
+                        dismiss()
+                    } else {
+                        // In embedded mode, return focus to the tree by making the window key
+                        // This will restore focus to the tree view which is the main content
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
                 }
             }
             .buttonStyle(.borderedProminent)
             .disabled(viewModel.isSaving)
-            .keyboardShortcut(.return)
+            .keyboardShortcut("s", modifiers: .command)
         }
         .padding()
     }
@@ -263,20 +277,22 @@ struct NodeDetailsView_macOS: View {
     }
     
     private var folderDetailsSection: some View {
-        GroupBox("Folder Details") {
-            VStack(alignment: .leading, spacing: 12) {
-                // Description
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Description")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    TextEditor(text: $viewModel.folderDescription)
-                        .frame(minHeight: 60)
-                        .font(.system(.body, design: .default))
-                        .onChange(of: viewModel.folderDescription) { newValue in
-                            viewModel.updateField(\.folderDescription, value: newValue)
-                        }
-                }
+        GroupBox("Folder Description") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Description")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+
+                TextEditor(text: $viewModel.folderDescription)
+                    .frame(minHeight: 150, idealHeight: 200, maxHeight: 400)
+                    .font(.system(.body, design: .default))
+                    .padding(4)
+                    .background(Color(NSColor.textBackgroundColor))
+                    .cornerRadius(4)
+                    .onChange(of: viewModel.folderDescription) { newValue in
+                        viewModel.updateField(\.folderDescription, value: newValue)
+                    }
             }
         }
     }
@@ -460,6 +476,25 @@ struct NodeDetailsView_macOS: View {
     private var taskDetailsSection: some View {
         GroupBox("Task Details") {
             VStack(alignment: .leading, spacing: 12) {
+                // Description - FIRST and more prominent
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Description")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    TextEditor(text: $viewModel.taskDescription)
+                        .font(.system(.body))
+                        .frame(minHeight: 150, idealHeight: 200, maxHeight: 400)
+                        .padding(4)
+                        .background(Color(NSColor.textBackgroundColor))
+                        .cornerRadius(4)
+                        .onChange(of: viewModel.taskDescription) { newValue in
+                            viewModel.updateField(\.taskDescription, value: newValue)
+                        }
+                }
+
+                Divider()
+
                 // Status
                 HStack(alignment: .top) {
                     Text("Status")
@@ -497,21 +532,7 @@ struct NodeDetailsView_macOS: View {
                     }
                     Spacer()
                 }
-                
-                // Description
-                HStack(alignment: .top) {
-                    Text("Description")
-                        .frame(width: 100, alignment: .trailing)
-                        .foregroundColor(.secondary)
-                    TextEditor(text: $viewModel.taskDescription)
-                        .font(.system(size: 13))
-                        .frame(minHeight: 80, maxHeight: 200)
-                        .border(Color.gray.opacity(0.2))
-                        .onChange(of: viewModel.taskDescription) { newValue in
-                            viewModel.updateField(\.taskDescription, value: newValue)
-                        }
-                }
-                
+
                 // Due Date
                 HStack(alignment: .top) {
                     Text("Due Date")
