@@ -595,6 +595,8 @@ struct TabBarView: View {
     let onCloseTab: (UUID) -> Void
     let onTabChange: () -> Void
 
+    @State private var draggedTab: TabModel?
+
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -615,6 +617,17 @@ struct TabBarView: View {
                             onStartEdit: { editingTabId = tab.id },
                             onEndEdit: { editingTabId = nil }
                         )
+                        .opacity(draggedTab?.id == tab.id ? 0.5 : 1.0)
+                        .onDrag {
+                            self.draggedTab = tab
+                            return NSItemProvider(object: tab.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: TabDropDelegate(
+                            tab: tab,
+                            tabs: $tabs,
+                            draggedTab: $draggedTab,
+                            onTabChange: onTabChange
+                        ))
                     }
                 }
                 .padding(.horizontal, 4)
@@ -754,6 +767,36 @@ struct NewTabSheet: View {
                 isTextFieldFocused = true
             }
         }
+    }
+}
+
+// MARK: - Tab Drop Delegate
+
+struct TabDropDelegate: DropDelegate {
+    let tab: TabModel
+    @Binding var tabs: [TabModel]
+    @Binding var draggedTab: TabModel?
+    let onTabChange: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedTab = draggedTab,
+              draggedTab.id != tab.id,
+              let fromIndex = tabs.firstIndex(where: { $0.id == draggedTab.id }),
+              let toIndex = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.3)) {
+            tabs.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedTab = nil
+        onTabChange() // Save the new tab order
+        return true
     }
 }
 
