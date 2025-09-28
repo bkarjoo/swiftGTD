@@ -400,6 +400,22 @@ public struct TabbedTreeView: View {
                         return nil
                     }
 
+                case 124: // Cmd+Right Arrow - Next tab
+                    if let currentIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) {
+                        let nextIndex = (currentIndex + 1) % tabs.count
+                        selectedTabId = tabs[nextIndex].id
+                        logger.log("✅ HANDLED: Cmd+Right Arrow - Switch to next tab", category: "KEYBOARD")
+                        return nil
+                    }
+
+                case 123: // Cmd+Left Arrow - Previous tab
+                    if let currentIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) {
+                        let previousIndex = currentIndex > 0 ? currentIndex - 1 : tabs.count - 1
+                        selectedTabId = tabs[previousIndex].id
+                        logger.log("✅ HANDLED: Cmd+Left Arrow - Switch to previous tab", category: "KEYBOARD")
+                        return nil
+                    }
+
                 default:
                     break
                 }
