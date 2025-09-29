@@ -335,6 +335,7 @@ public struct TabbedTreeView: View {
                     }
                     logger.log("🔄 Cmd+T (not Shift) - falling through for tags", category: "KEYBOARD")
                     // Fall through for Cmd+T (tags)
+                    break
 
                 case 13: // Cmd+W - Close tab
                     if let tabId = self.selectedTabId {
