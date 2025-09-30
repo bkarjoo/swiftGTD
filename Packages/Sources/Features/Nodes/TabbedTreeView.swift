@@ -187,7 +187,8 @@ public struct TabbedTreeView: View {
         if let currentTab = currentTab {
             TreeView_macOS(viewModel: currentTab.viewModel)
                 .environmentObject(dataManager)
-                .id(currentTab.id)
+                // Removed .id() modifier which was causing view recreation
+                // and breaking @ObservedObject observation of @Published properties
         }
     }
 
@@ -295,7 +296,18 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // ATTEMPT 8: Add diagnostic logging
+            logger.log("🔵 MONITOR ALIVE: Received keyDown event", category: "KEYBOARD-MONITOR")
+
+            // ATTEMPT 9: Log the state of showingTagPickerForNode
+            if let currentTab = self.currentTab {
+                if currentTab.viewModel.showingTagPickerForNode != nil {
+                    logger.log("⚠️ ATTEMPT 9: showingTagPickerForNode is SET - would normally block", category: "KEYBOARD-MODAL")
+                }
+            }
+
             guard let currentTab = self.currentTab else {
+                logger.log("⚠️ No current tab available", category: "KEYBOARD-MONITOR")
                 return event
             }
             let viewModel = currentTab.viewModel
@@ -308,15 +320,17 @@ public struct TabbedTreeView: View {
             }
 
             // Don't process if ANY modal is showing
+            // ATTEMPT 9: Commented out showingTagPickerForNode check - it blocks keyboard when sheet doesn't present
             if self.showingNewTabDialog ||
                self.editingTabId != nil ||
                viewModel.showingDeleteAlert ||
                viewModel.showingCreateDialog ||
                viewModel.showingDetailsForNode != nil ||
-               viewModel.showingTagPickerForNode != nil ||
+               // viewModel.showingTagPickerForNode != nil ||  // ATTEMPT 9: DISABLED
                viewModel.showingNoteEditorForNode != nil ||
                viewModel.showingHelpWindow ||
                viewModel.isEditing {
+                logger.log("🚫 ATTEMPT 9: Modal check blocking event (tag picker check disabled)", category: "KEYBOARD-MODAL")
                 return event
             }
 
@@ -344,6 +358,7 @@ public struct TabbedTreeView: View {
                         return nil
                     }
                     logger.log("⚠️ Cmd+W but no selected tab", category: "KEYBOARD")
+                    break
 
                 // Tab switching
                 case 18: // Cmd+1
@@ -428,19 +443,28 @@ public struct TabbedTreeView: View {
             logger.log("  - selectedNodeId: \(viewModel.selectedNodeId ?? "nil")", category: "KEYBOARD")
             logger.log("  - focusedNodeId: \(viewModel.focusedNodeId ?? "nil")", category: "KEYBOARD")
 
-            let handled = viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers)
-            if handled {
-                logger.log("✅✅✅ TreeViewModel HANDLED the key - returning nil", category: "KEYBOARD")
-                return nil
-            } else {
-                // For unhandled keys with modifiers (potential shortcuts), consume them
-                // to prevent keyboard handling from breaking
-                if modifiers.contains(.command) || modifiers.contains(.control) || modifiers.contains(.option) {
-                    logger.log("⚠️ Unhandled shortcut - consuming to prevent issues", category: "KEYBOARD")
-                    return nil
+            // ATTEMPT 8: Add exception handling
+            do {
+                let handled = viewModel.handleKeyPress(keyCode: keyCode, modifiers: modifiers)
+
+                // Special diagnostic for Cmd+T
+                if modifiers.contains(.command) && keyCode == 17 {
+                    logger.log("🔍 ATTEMPT 8: Cmd+T handling result: \(handled)", category: "KEYBOARD-MONITOR")
+                    logger.log("  - Monitor still active: \(self.keyEventMonitor != nil)", category: "KEYBOARD-MONITOR")
+                    logger.log("  - showingTagPickerForNode: \(viewModel.showingTagPickerForNode?.title ?? "nil")", category: "KEYBOARD-MONITOR")
                 }
-                // For plain keys without modifiers, let the system handle them
-                logger.log("❌ TreeViewModel DID NOT handle plain key - passing through", category: "KEYBOARD")
+
+                if handled {
+                    logger.log("✅✅✅ TreeViewModel HANDLED the key - returning nil", category: "KEYBOARD")
+                    return nil
+                } else {
+                    // Pass through all unhandled events to the system
+                    // This ensures keyboard shortcuts don't break
+                    logger.log("❌ TreeViewModel DID NOT handle key - passing through", category: "KEYBOARD")
+                    return event
+                }
+            } catch {
+                logger.log("❌ ATTEMPT 8: EXCEPTION in handleKeyPress: \(error)", category: "KEYBOARD-ERROR", level: .error)
                 return event
             }
         }
