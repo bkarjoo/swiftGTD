@@ -124,6 +124,19 @@ public struct TreeView_macOS: View {
             detailPane
                 .frame(width: windowWidth * (1 - dividerPosition))
         }
+        // Tag picker should still show as a sheet even in split pane mode
+        .sheet(item: $viewModel.showingTagPickerForNode) { node in
+            TagPickerView(node: node) {
+                await viewModel.updateSingleNode(nodeId: node.id)
+            }
+        }
+        // Note editor should also be available in split pane mode
+        .sheet(item: $viewModel.showingNoteEditorForNode) { node in
+            NoteEditorView(node: node) {
+                await viewModel.refreshNodes()
+            }
+        }
+        // Details sheet intentionally not included - details show in right pane
     }
 
     private var regularTreeView: some View {
@@ -138,8 +151,20 @@ public struct TreeView_macOS: View {
                     NodeDetailsView(nodeId: node.id, treeViewModel: viewModel)
                 }
                 .sheet(item: $viewModel.showingTagPickerForNode) { node in
+                    // ATTEMPT 8: Log when sheet is actually presented
+                    let _ = logger.log("🎯 ATTEMPT 8: Tag picker sheet PRESENTING for node: \(node.title)", category: "UI-SHEET")
                     TagPickerView(node: node) {
                         await viewModel.updateSingleNode(nodeId: node.id)
+                    }
+                }
+                .onChange(of: viewModel.showingTagPickerForNode?.id) { newId in
+                    // ATTEMPT 10: Log when the binding changes
+                    if let node = viewModel.showingTagPickerForNode {
+                        logger.log("🔍 ATTEMPT 10: showingTagPickerForNode changed to: \(node.title)", category: "UI-BINDING")
+                        logger.log("  ✅ Sheet should present now for: \(node.title)", category: "UI-BINDING")
+                    } else {
+                        logger.log("🔍 ATTEMPT 10: showingTagPickerForNode changed to: nil", category: "UI-BINDING")
+                        logger.log("  ❌ Sheet dismissed or nil", category: "UI-BINDING")
                     }
                 }
         }
@@ -626,14 +651,14 @@ public struct TreeView_macOS: View {
     private func handleQuickAddToDefaultFolder() async {
         // Get the default folder ID
         guard let defaultNodeId = await dataManager.getDefaultFolder() else {
-            logger.log("⚠️ No default folder set", level: .warning, category: "TreeView")
+            logger.log("⚠️ No default folder set", category: "TreeView", level: .warning)
             // Could show an alert here if desired
             return
         }
 
             // Find the default folder in the current nodes
             guard let defaultFolder = viewModel.allNodes.first(where: { $0.id == defaultNodeId }) else {
-                logger.log("⚠️ Default folder not found in nodes", level: .warning, category: "TreeView")
+                logger.log("⚠️ Default folder not found in nodes", category: "TreeView", level: .warning)
                 return
             }
 
