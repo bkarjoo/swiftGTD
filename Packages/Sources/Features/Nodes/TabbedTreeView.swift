@@ -433,7 +433,14 @@ public struct TabbedTreeView: View {
                 logger.log("✅✅✅ TreeViewModel HANDLED the key - returning nil", category: "KEYBOARD")
                 return nil
             } else {
-                logger.log("❌❌❌ TreeViewModel DID NOT handle - returning event (BEEP!)", category: "KEYBOARD")
+                // For unhandled keys with modifiers (potential shortcuts), consume them
+                // to prevent keyboard handling from breaking
+                if modifiers.contains(.command) || modifiers.contains(.control) || modifiers.contains(.option) {
+                    logger.log("⚠️ Unhandled shortcut - consuming to prevent issues", category: "KEYBOARD")
+                    return nil
+                }
+                // For plain keys without modifiers, let the system handle them
+                logger.log("❌ TreeViewModel DID NOT handle plain key - passing through", category: "KEYBOARD")
                 return event
             }
         }
