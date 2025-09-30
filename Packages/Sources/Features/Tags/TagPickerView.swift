@@ -2,6 +2,9 @@ import SwiftUI
 import Models
 import Services
 import Core
+#if os(macOS)
+import AppKit
+#endif
 
 private let logger = Logger.shared
 
@@ -15,9 +18,14 @@ public struct TagPickerView: View {
     @State private var nodeTags: [Tag] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var selectedIndex = 0
+    @FocusState private var searchFieldFocused: Bool
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dataManager: DataManager
-    
+    #if os(macOS)
+    @State private var keyEventMonitor: Any?
+    #endif
+
     // Debounce timer for search
     @State private var searchTask: Task<Void, Never>?
     
@@ -25,7 +33,35 @@ public struct TagPickerView: View {
         self.node = node
         self.onDismiss = onDismiss
     }
-    
+
+    // Computed property for all visible tags in order
+    private var allVisibleTags: [Tag] {
+        var tags: [Tag] = []
+
+        if !searchText.isEmpty {
+            // Add create option if tag doesn't exist
+            if !tagExists(searchText) {
+                // Use a placeholder tag for the create option
+                let createTag = Tag(id: "create-new", name: searchText, color: "#00FF00", description: "Create new tag", createdAt: nil)
+                tags.append(createTag)
+            }
+            tags.append(contentsOf: filteredTags)
+        }
+
+        // Current tags
+        tags.append(contentsOf: nodeTags)
+
+        // Available tags not attached
+        if searchText.isEmpty {
+            let unattachedTags = availableTags.filter { tag in
+                !nodeTags.contains(where: { $0.id == tag.id })
+            }
+            tags.append(contentsOf: unattachedTags)
+        }
+
+        return tags
+    }
+
     public var body: some View {
         #if os(iOS)
         NavigationView {
@@ -59,12 +95,23 @@ public struct TagPickerView: View {
                 .keyboardShortcut(.defaultAction)
             }
             .padding()
-            
+
             Divider()
-            
+
             content
         }
         .frame(width: 400, height: 500)
+        .onAppear {
+            searchFieldFocused = true
+            #if os(macOS)
+            setupKeyEventMonitor()
+            #endif
+        }
+        .onDisappear {
+            #if os(macOS)
+            removeKeyEventMonitor()
+            #endif
+        }
         #endif
     }
     
@@ -77,21 +124,29 @@ public struct TagPickerView: View {
                 
                 TextField("Search or create tag...", text: $searchText)
                     .textFieldStyle(.plain)
+                    .focused($searchFieldFocused)
                     .onSubmit {
-                        if !searchText.isEmpty {
+                        if !searchText.isEmpty && allVisibleTags.isEmpty {
                             Task {
                                 await createAndAttachTag(searchText)
+                            }
+                        } else if selectedIndex < allVisibleTags.count {
+                            Task {
+                                await handleTagSelection(at: selectedIndex)
                             }
                         }
                     }
                     .onChange(of: searchText) { newValue in
                         // Cancel previous search task
                         searchTask?.cancel()
-                        
+
+                        // Reset selection when searching
+                        selectedIndex = 0
+
                         // Start new search task with debounce
                         searchTask = Task {
                             try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
-                            
+
                             if !Task.isCancelled {
                                 await searchTags(newValue)
                             }
@@ -124,10 +179,11 @@ public struct TagPickerView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        // Show search results or suggestions
+                        // Show search results or create option
                         if !searchText.isEmpty {
                             if !tagExists(searchText) {
                                 // Show create new tag option
+                                let isSelected = selectedIndex == 0
                                 Button(action: {
                                     Task {
                                         await createAndAttachTag(searchText)
@@ -142,53 +198,57 @@ public struct TagPickerView: View {
                                     }
                                     .padding(.horizontal)
                                     .padding(.vertical, 8)
+                                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                                    .cornerRadius(4)
                                 }
                                 .buttonStyle(.plain)
-                                #if os(macOS)
-                                .onHover { isHovered in
-                                    if isHovered {
-                                        NSCursor.pointingHand.push()
-                                    } else {
-                                        NSCursor.pop()
-                                    }
-                                }
-                                #endif
-                                
+
                                 Divider()
                                     .padding(.horizontal)
                             }
-                            
-                            // Show filtered tags
-                            ForEach(filteredTags) { tag in
-                                tagRow(tag)
+                        }
+
+                        // Group tags by sections
+                        let searchTags = !searchText.isEmpty ? filteredTags : []
+                        let currentTags = nodeTags
+                        let availableTags = searchText.isEmpty ?
+                            self.availableTags.filter { tag in
+                                !nodeTags.contains(where: { $0.id == tag.id })
+                            } : []
+
+                        // Show search results
+                        if !searchTags.isEmpty {
+                            ForEach(Array(searchTags.enumerated()), id: \.element.id) { index, tag in
+                                let globalIndex = index + (!searchText.isEmpty && !tagExists(searchText) ? 1 : 0)
+                                tagRowWithSelection(tag, isSelected: selectedIndex == globalIndex, index: globalIndex)
                             }
                         }
-                        
+
                         // Show current node tags
-                        if !nodeTags.isEmpty {
+                        if !currentTags.isEmpty && searchText.isEmpty {
                             Text("Current Tags")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal)
-                                .padding(.top, searchText.isEmpty ? 0 : 8)
-                            
-                            ForEach(nodeTags) { tag in
-                                tagRow(tag)
+                                .padding(.top, 0)
+
+                            ForEach(Array(currentTags.enumerated()), id: \.element.id) { index, tag in
+                                let globalIndex = index + searchTags.count + (!searchText.isEmpty && !tagExists(searchText) ? 1 : 0)
+                                tagRowWithSelection(tag, isSelected: selectedIndex == globalIndex, index: globalIndex)
                             }
                         }
-                        
-                        // Show all available tags if no search
-                        if searchText.isEmpty && !availableTags.isEmpty {
+
+                        // Show available tags
+                        if !availableTags.isEmpty {
                             Text("Available Tags")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal)
-                                .padding(.top, nodeTags.isEmpty ? 0 : 8)
-                            
-                            ForEach(availableTags.filter { tag in
-                                !nodeTags.contains(where: { $0.id == tag.id })
-                            }) { tag in
-                                tagRow(tag)
+                                .padding(.top, currentTags.isEmpty ? 0 : 8)
+
+                            ForEach(Array(availableTags.enumerated()), id: \.element.id) { index, tag in
+                                let globalIndex = index + searchTags.count + currentTags.count + (!searchText.isEmpty && !tagExists(searchText) ? 1 : 0)
+                                tagRowWithSelection(tag, isSelected: selectedIndex == globalIndex, index: globalIndex)
                             }
                         }
                     }
@@ -208,10 +268,10 @@ public struct TagPickerView: View {
         }
     }
     
-    private func tagRow(_ tag: Tag) -> some View {
+    private func tagRowWithSelection(_ tag: Tag, isSelected: Bool, index: Int) -> some View {
         Button(action: {
             Task {
-                await toggleTag(tag)
+                await handleTagSelection(at: index)
             }
         }) {
             HStack {
@@ -219,19 +279,19 @@ public struct TagPickerView: View {
                 Circle()
                     .fill(tag.displayColor)
                     .frame(width: 12, height: 12)
-                
+
                 Text(tag.name)
                     .foregroundColor(.primary)
-                
-                if let description = tag.description, !description.isEmpty {
+
+                if tag.id != "create-new", let description = tag.description, !description.isEmpty {
                     Text("• \(description)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
-                
+
                 Spacer()
-                
+
                 // Show checkmark if tag is attached to node
                 if nodeTags.contains(where: { $0.id == tag.id }) {
                     Image(systemName: "checkmark.circle.fill")
@@ -240,14 +300,14 @@ public struct TagPickerView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 6)
+            .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+            .cornerRadius(4)
         }
         .buttonStyle(.plain)
         #if os(macOS)
         .onHover { isHovered in
             if isHovered {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
+                selectedIndex = index
             }
         }
         #endif
@@ -322,26 +382,128 @@ public struct TagPickerView: View {
         do {
             // Create or get existing tag
             let tag = try await dataManager.createTag(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
-            
+
             // Attach to node if not already attached
             if !nodeTags.contains(where: { $0.id == tag.id }) {
                 try await dataManager.attachTagToNode(nodeId: node.id, tagId: tag.id)
                 nodeTags.append(tag)
-                
+
                 // Add to available tags if not there
                 if !availableTags.contains(where: { $0.id == tag.id }) {
                     availableTags.append(tag)
                 }
             }
-            
+
             // Clear search
             searchText = ""
             filteredTags = []
-            
+
             logger.log("✅ Created and attached tag: \(tag.name)", category: "TagPickerView")
         } catch {
             errorMessage = "Failed to create tag: \(error.localizedDescription)"
             logger.log("❌ Failed to create tag: \(error)", level: .error, category: "TagPickerView")
+        }
+    }
+
+    #if os(macOS)
+    private func setupKeyEventMonitor() {
+        removeKeyEventMonitor()
+
+        logger.log("🎹 Setting up key event monitor for TagPicker", category: "TagPickerView")
+
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Check if we should handle this key
+            let shouldHandle = self.shouldHandleKeyEvent(event)
+
+            logger.log("🎹 Key event: \(event.keyCode), shouldHandle: \(shouldHandle)", category: "TagPickerView")
+
+            if shouldHandle {
+                return self.handleKeyEvent(event) ? nil : event
+            } else {
+                return event
+            }
+        }
+    }
+
+    private func shouldHandleKeyEvent(_ event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 125, 126: // Arrow keys - always handle
+            return true
+        case 49: // Space - always handle
+            return true
+        case 53: // Escape - always handle
+            return true
+        case 36: // Return - only handle if NOT in search field
+            if let firstResponder = NSApp.keyWindow?.firstResponder,
+               firstResponder is NSTextView || firstResponder is NSTextField {
+                return false // Let the text field's onSubmit handle it
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func removeKeyEventMonitor() {
+        if let monitor = keyEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyEventMonitor = nil
+        }
+    }
+
+    private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        let tags = allVisibleTags
+
+        logger.log("🎹 TagPicker handling key: \(event.keyCode)", category: "TagPickerView")
+
+        switch event.keyCode {
+        case 125: // Down arrow
+            if !tags.isEmpty {
+                selectedIndex = min(selectedIndex + 1, tags.count - 1)
+                logger.log("⬇️ Down arrow: selectedIndex = \(selectedIndex)", category: "TagPickerView")
+            }
+            return true
+
+        case 126: // Up arrow
+            if !tags.isEmpty {
+                selectedIndex = max(selectedIndex - 1, 0)
+                logger.log("⬆️ Up arrow: selectedIndex = \(selectedIndex)", category: "TagPickerView")
+            }
+            return true
+
+        case 49, 36: // Space or Return
+            logger.log("⏎ Space/Return: selecting tag at index \(selectedIndex)", category: "TagPickerView")
+            if selectedIndex < tags.count {
+                Task {
+                    await handleTagSelection(at: selectedIndex)
+                }
+            }
+            return true
+
+        case 53: // Escape
+            logger.log("⎋ Escape: dismissing tag picker", category: "TagPickerView")
+            Task {
+                await onDismiss()
+                dismiss()
+            }
+            return true
+
+        default:
+            return false
+        }
+    }
+    #endif
+
+    private func handleTagSelection(at index: Int) async {
+        let tags = allVisibleTags
+        guard index < tags.count else { return }
+
+        let tag = tags[index]
+
+        if tag.id == "create-new" {
+            await createAndAttachTag(searchText)
+        } else {
+            await toggleTag(tag)
         }
     }
 }
