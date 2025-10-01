@@ -9,15 +9,15 @@ import AppKit
 public class UIStateManager: ObservableObject {
     public static let shared = UIStateManager()
     private let logger = Logger.shared
-    private let fileName = "ui-state.json"
+    private let fileNamePrefix = "ui-state"
     private let periodicSaveInterval: TimeInterval = 1.0 // Save at most once per second
 
-    private var currentState: UIState? // In-memory state
-    private var lastSavedState: UIState? // Track what was last saved to disk
+    private var windowStates: [UUID: UIState] = [:] // Per-window state
+    private var lastSavedStates: [UUID: UIState] = [:] // Track what was last saved to disk
     private var periodicSaveTimer: Timer?
     private let saveQueue = DispatchQueue(label: "com.swiftgtd.uistate", qos: .background)
 
-    private nonisolated var fileURL: URL {
+    private nonisolated func fileURL(for windowId: UUID) -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory,
                                                   in: .userDomainMask).first!
         let appDirectory = appSupport.appendingPathComponent("SwiftGTD")
@@ -26,7 +26,16 @@ public class UIStateManager: ObservableObject {
         try? FileManager.default.createDirectory(at: appDirectory,
                                                 withIntermediateDirectories: true)
 
-        return appDirectory.appendingPathComponent(fileName)
+        return appDirectory.appendingPathComponent("\(fileNamePrefix)-\(windowId.uuidString).json")
+    }
+
+    private nonisolated var statesDirectory: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                  in: .userDomainMask).first!
+        let appDirectory = appSupport.appendingPathComponent("SwiftGTD")
+        try? FileManager.default.createDirectory(at: appDirectory,
+                                                withIntermediateDirectories: true)
+        return appDirectory
     }
 
     private init() {
@@ -50,14 +59,29 @@ public class UIStateManager: ObservableObject {
     }
 
     // Update in-memory state (instant, no disk I/O)
-    public func updateState(_ state: UIState) {
-        currentState = state
+    public func updateState(_ state: UIState, for windowId: UUID) {
+        windowStates[windowId] = state
     }
 
     // Save state at key moments (tab change, window deactivation, etc)
-    public func saveStateNow() {
-        guard let state = currentState else { return }
-        performSave(state)
+    public func saveStateNow(for windowId: UUID) {
+        guard let state = windowStates[windowId] else { return }
+        performSave(state, for: windowId)
+    }
+
+    // Remove state when window closes
+    public func removeState(for windowId: UUID) {
+        windowStates.removeValue(forKey: windowId)
+        lastSavedStates.removeValue(forKey: windowId)
+
+        // Delete the file
+        saveQueue.async { [weak self] in
+            guard let self = self else { return }
+            let url = self.fileURL(for: windowId)
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     // Periodic save timer - runs every second but only saves if state changed
@@ -70,11 +94,12 @@ public class UIStateManager: ObservableObject {
     }
 
     private func performPeriodicSave() {
-        guard let state = currentState else { return }
-
-        // Only save if state actually changed
-        if !stateEquals(state, lastSavedState) {
-            performSave(state)
+        // Save all windows that have changed
+        for (windowId, state) in windowStates {
+            let lastSaved = lastSavedStates[windowId]
+            if !stateEquals(state, lastSaved) {
+                performSave(state, for: windowId)
+            }
         }
     }
 
@@ -89,15 +114,14 @@ public class UIStateManager: ObservableObject {
     }
 
     @objc private func applicationWillTerminate() {
-        // Save immediately on termination
-        if let state = currentState {
-            performSaveSync(state)
+        // Save all windows immediately on termination
+        for (windowId, state) in windowStates {
+            performSaveSync(state, for: windowId)
         }
     }
 
-    private func performSave(_ state: UIState) {
-
-        logger.log("💾 Performing UI state save with \(state.tabs.count) tabs", category: "UIStateManager")
+    private func performSave(_ state: UIState, for windowId: UUID) {
+        logger.log("💾 Performing UI state save for window \(windowId) with \(state.tabs.count) tabs", category: "UIStateManager")
 
         // Perform save on background queue
         saveQueue.async { [weak self] in
@@ -108,73 +132,100 @@ public class UIStateManager: ObservableObject {
                 encoder.outputFormatting = .prettyPrinted
                 let data = try encoder.encode(state)
 
+                let url = self.fileURL(for: windowId)
                 // Atomic write: write to temp file first, then move
-                let tempURL = self.fileURL.appendingPathExtension("tmp")
+                let tempURL = url.appendingPathExtension("tmp")
                 try data.write(to: tempURL, options: .atomic)
 
                 // Move temp file to final location (atomic operation)
-                if FileManager.default.fileExists(atPath: self.fileURL.path) {
-                    try FileManager.default.removeItem(at: self.fileURL)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
                 }
-                try FileManager.default.moveItem(at: tempURL, to: self.fileURL)
+                try FileManager.default.moveItem(at: tempURL, to: url)
 
                 Task { @MainActor in
-                    self.logger.log("✅ UI state saved successfully", category: "UIStateManager")
-                    self.lastSavedState = state
+                    self.logger.log("✅ UI state saved successfully for window \(windowId)", category: "UIStateManager")
+                    self.lastSavedStates[windowId] = state
                 }
             } catch {
                 Task { @MainActor in
-                    self.logger.error("❌ Failed to save UI state: \(error)", category: "UIStateManager")
+                    self.logger.error("❌ Failed to save UI state for window \(windowId): \(error)", category: "UIStateManager")
                 }
             }
         }
     }
 
     // Synchronous save for termination/background cases
-    private func performSaveSync(_ state: UIState) {
-
-        logger.log("💾 Performing synchronous UI state save with \(state.tabs.count) tabs", category: "UIStateManager")
+    private func performSaveSync(_ state: UIState, for windowId: UUID) {
+        logger.log("💾 Performing synchronous UI state save for window \(windowId) with \(state.tabs.count) tabs", category: "UIStateManager")
 
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(state)
 
+            let url = fileURL(for: windowId)
             // Atomic write: write to temp file first, then move
-            let tempURL = self.fileURL.appendingPathExtension("tmp")
+            let tempURL = url.appendingPathExtension("tmp")
             try data.write(to: tempURL, options: .atomic)
 
-            if FileManager.default.fileExists(atPath: self.fileURL.path) {
-                try FileManager.default.removeItem(at: self.fileURL)
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
             }
-            try FileManager.default.moveItem(at: tempURL, to: self.fileURL)
+            try FileManager.default.moveItem(at: tempURL, to: url)
 
-            logger.log("✅ UI state saved synchronously", category: "UIStateManager")
-            lastSavedState = state
+            logger.log("✅ UI state saved synchronously for window \(windowId)", category: "UIStateManager")
+            lastSavedStates[windowId] = state
         } catch {
-            logger.error("❌ Failed to synchronously save UI state: \(error)", category: "UIStateManager")
+            logger.error("❌ Failed to synchronously save UI state for window \(windowId): \(error)", category: "UIStateManager")
         }
     }
 
-    public func loadState() -> UIState? {
-        logger.log("📂 Loading UI state from: \(fileURL.path)", category: "UIStateManager")
+    public func loadState(for windowId: UUID) -> UIState? {
+        let url = fileURL(for: windowId)
+        logger.log("📂 Loading UI state for window \(windowId) from: \(url.path)", category: "UIStateManager")
 
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            logger.log("ℹ️ No saved UI state found", category: "UIStateManager")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            logger.log("ℹ️ No saved UI state found for window \(windowId)", category: "UIStateManager")
             return nil
         }
 
         do {
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: url)
             let state = try JSONDecoder().decode(UIState.self, from: data)
 
             // Validate the loaded state
             let validatedState = validateState(state)
 
-            logger.log("✅ Loaded UI state with \(validatedState.tabs.count) tabs", category: "UIStateManager")
+            logger.log("✅ Loaded UI state for window \(windowId) with \(validatedState.tabs.count) tabs", category: "UIStateManager")
             return validatedState
         } catch {
-            logger.error("❌ Failed to load UI state: \(error)", category: "UIStateManager")
+            logger.error("❌ Failed to load UI state for window \(windowId): \(error)", category: "UIStateManager")
+            return nil
+        }
+    }
+
+    // Load any existing window state (for creating first window)
+    public func loadAnyExistingState() -> UIState? {
+        do {
+            let files = try FileManager.default.contentsOfDirectory(at: statesDirectory,
+                                                                    includingPropertiesForKeys: nil)
+            let stateFiles = files.filter { $0.lastPathComponent.hasPrefix(fileNamePrefix) && $0.pathExtension == "json" }
+
+            // Use the most recently modified state file
+            let sortedFiles = stateFiles.sorted { (url1, url2) -> Bool in
+                let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.modificationDate] as? Date) ?? Date.distantPast
+                let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.modificationDate] as? Date) ?? Date.distantPast
+                return date1 > date2
+            }
+
+            guard let mostRecentFile = sortedFiles.first else { return nil }
+
+            let data = try Data(contentsOf: mostRecentFile)
+            let state = try JSONDecoder().decode(UIState.self, from: data)
+            return validateState(state)
+        } catch {
+            logger.error("❌ Failed to load any existing state: \(error)", category: "UIStateManager")
             return nil
         }
     }
@@ -208,20 +259,41 @@ public class UIStateManager: ObservableObject {
         return UIState(tabs: validTabs, version: state.version)
     }
 
-    public func clearState() {
-        logger.log("🗑️ Clearing UI state", category: "UIStateManager")
+    public func clearState(for windowId: UUID) {
+        logger.log("🗑️ Clearing UI state for window \(windowId)", category: "UIStateManager")
 
         // Clear in-memory state
-        currentState = nil
-        lastSavedState = nil
+        windowStates.removeValue(forKey: windowId)
+        lastSavedStates.removeValue(forKey: windowId)
 
-        if FileManager.default.fileExists(atPath: fileURL.path) {
+        let url = fileURL(for: windowId)
+        if FileManager.default.fileExists(atPath: url.path) {
             do {
-                try FileManager.default.removeItem(at: fileURL)
-                logger.log("✅ UI state cleared", category: "UIStateManager")
+                try FileManager.default.removeItem(at: url)
+                logger.log("✅ UI state cleared for window \(windowId)", category: "UIStateManager")
             } catch {
-                logger.error("❌ Failed to clear UI state: \(error)", category: "UIStateManager")
+                logger.error("❌ Failed to clear UI state for window \(windowId): \(error)", category: "UIStateManager")
             }
+        }
+    }
+
+    public func clearAllStates() {
+        logger.log("🗑️ Clearing all UI states", category: "UIStateManager")
+
+        windowStates.removeAll()
+        lastSavedStates.removeAll()
+
+        do {
+            let files = try FileManager.default.contentsOfDirectory(at: statesDirectory,
+                                                                    includingPropertiesForKeys: nil)
+            let stateFiles = files.filter { $0.lastPathComponent.hasPrefix(fileNamePrefix) && $0.pathExtension == "json" }
+
+            for file in stateFiles {
+                try FileManager.default.removeItem(at: file)
+            }
+            logger.log("✅ All UI states cleared", category: "UIStateManager")
+        } catch {
+            logger.error("❌ Failed to clear all UI states: \(error)", category: "UIStateManager")
         }
     }
 }

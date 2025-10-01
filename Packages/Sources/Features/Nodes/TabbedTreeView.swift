@@ -86,6 +86,7 @@ extension Notification.Name {
 public struct TabbedTreeView: View {
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.scenePhase) var scenePhase
+    @Environment(\.windowId) var windowId
     @State private var tabs: [TabModel] = []
     @State private var selectedTabId: UUID?
     @State private var showingNewTabDialog = false
@@ -95,6 +96,7 @@ public struct TabbedTreeView: View {
     @State private var hasRestoredState = false
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var activeTabSubscription: AnyCancellable?
+    @State private var hostingWindow: NSWindow?
     private let stateManager = UIStateManager.shared
     private let logger = Logger.shared
 
@@ -126,6 +128,7 @@ public struct TabbedTreeView: View {
             setupKeyEventMonitor()
             setupStateChangeObservers()
         }
+        .background(WindowAccessor(window: $hostingWindow))
         .onDisappear {
             if let monitor = keyEventMonitor {
                 NSEvent.removeMonitor(monitor)
@@ -141,6 +144,7 @@ public struct TabbedTreeView: View {
             activeTabSubscription = nil
             // Save on disappear
             self.saveStateNow()
+            logger.log("🪟 Window \(windowId) disappeared", category: "TabbedTreeView")
         }
         .onChange(of: selectedTabId) { _ in
             setupActiveTabSubscription()
@@ -296,18 +300,23 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // ATTEMPT 8: Add diagnostic logging
-            logger.log("🔵 MONITOR ALIVE: Received keyDown event", category: "KEYBOARD-MONITOR")
+            // Only process events if this TabbedTreeView's window is the key window
+            guard let ourWindow = self.hostingWindow,
+                  ourWindow.isKeyWindow else {
+                return event
+            }
+
+            self.logger.log("🔵 MONITOR (Window \(self.windowId)): Received keyDown event", category: "KEYBOARD-MONITOR")
 
             // ATTEMPT 9: Log the state of showingTagPickerForNode
             if let currentTab = self.currentTab {
                 if currentTab.viewModel.showingTagPickerForNode != nil {
-                    logger.log("⚠️ ATTEMPT 9: showingTagPickerForNode is SET - would normally block", category: "KEYBOARD-MODAL")
+                    self.logger.log("⚠️ ATTEMPT 9: showingTagPickerForNode is SET - would normally block", category: "KEYBOARD-MODAL")
                 }
             }
 
             guard let currentTab = self.currentTab else {
-                logger.log("⚠️ No current tab available", category: "KEYBOARD-MONITOR")
+                self.logger.log("⚠️ No current tab available", category: "KEYBOARD-MONITOR")
                 return event
             }
             let viewModel = currentTab.viewModel
@@ -473,7 +482,7 @@ public struct TabbedTreeView: View {
     // MARK: - State Persistence
 
     private func updateState() {
-        logger.log("📝 Updating in-memory state", category: "TabbedTreeView")
+        logger.log("📝 Updating in-memory state for window \(windowId)", category: "TabbedTreeView")
 
         let tabStates = tabs.map { tab in
             let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId
@@ -486,11 +495,11 @@ public struct TabbedTreeView: View {
         }
 
         let state = UIState(tabs: tabStates)
-        stateManager.updateState(state) // Update in-memory state
+        stateManager.updateState(state, for: windowId) // Update in-memory state
     }
 
     private func saveStateNow() {
-        logger.log("💾 Saving state to disk now", category: "TabbedTreeView")
+        logger.log("💾 Saving state to disk now for window \(windowId)", category: "TabbedTreeView")
 
         let tabStates = tabs.map { tab in
             let focusedId = tab.viewModel.focusedNodeId ?? tab.viewModel.selectedNodeId
@@ -502,16 +511,19 @@ public struct TabbedTreeView: View {
         }
 
         let state = UIState(tabs: tabStates)
-        stateManager.updateState(state) // Update in-memory
-        stateManager.saveStateNow() // Force save to disk
+        stateManager.updateState(state, for: windowId) // Update in-memory
+        stateManager.saveStateNow(for: windowId) // Force save to disk
     }
 
 
     private func restoreState() {
-        logger.log("📂 Restoring tab state", category: "TabbedTreeView")
+        logger.log("📂 Restoring tab state for window \(windowId)", category: "TabbedTreeView")
 
-        if let state = stateManager.loadState(), !state.tabs.isEmpty {
-            logger.log("✅ Found saved state with \(state.tabs.count) tabs", category: "TabbedTreeView")
+        // Try to load state for this specific window, fallback to any existing state for first window
+        let state = stateManager.loadState(for: windowId) ?? stateManager.loadAnyExistingState()
+
+        if let state = state, !state.tabs.isEmpty {
+            logger.log("✅ Found saved state with \(state.tabs.count) tabs for window \(windowId)", category: "TabbedTreeView")
 
             // Create tabs from saved state
             tabs = state.tabs.map { tabState in
