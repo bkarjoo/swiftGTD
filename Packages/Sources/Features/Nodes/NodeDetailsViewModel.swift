@@ -150,7 +150,7 @@ public class NodeDetailsViewModel: ObservableObject {
         } catch {
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
-                logger.log("❌ Failed to load node: \(error)", level: .error, category: "NodeDetailsViewModel")
+                logger.log("❌ Failed to load node: \(error)", category: "NodeDetailsViewModel", level: .error)
             }
         }
         
@@ -174,7 +174,7 @@ public class NodeDetailsViewModel: ObservableObject {
                 logger.log("✅ Loaded \(rules.count) available rules", category: "NodeDetailsViewModel")
             }
         } catch {
-            logger.log("❌ Failed to load rules: \(error)", level: .error, category: "NodeDetailsViewModel")
+            logger.log("❌ Failed to load rules: \(error)", category: "NodeDetailsViewModel", level: .error)
             // Continue without rules - non-critical error
         }
     }
@@ -190,7 +190,7 @@ public class NodeDetailsViewModel: ObservableObject {
         logger.log("📞 Loading available parents", category: "NodeDetailsViewModel")
         
         guard let dataManager = dataManager else {
-            logger.log("❌ No DataManager available", level: .error, category: "NodeDetailsViewModel")
+            logger.log("❌ No DataManager available", category: "NodeDetailsViewModel", level: .error)
             return
         }
         
@@ -474,7 +474,7 @@ public class NodeDetailsViewModel: ObservableObject {
         } catch {
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
-                logger.log("❌ Failed to save node: \(error)", level: .error, category: "NodeDetailsViewModel")
+                logger.log("❌ Failed to save node: \(error)", category: "NodeDetailsViewModel", level: .error)
             }
         }
         
@@ -525,7 +525,7 @@ public class NodeDetailsViewModel: ObservableObject {
                 logger.log("✅ Tags reloaded: \(freshNode.tags.count) tags", category: "NodeDetailsViewModel")
             }
         } catch {
-            logger.log("❌ Failed to reload tags: \(error)", level: .error, category: "NodeDetailsViewModel")
+            logger.log("❌ Failed to reload tags: \(error)", category: "NodeDetailsViewModel", level: .error)
         }
     }
 

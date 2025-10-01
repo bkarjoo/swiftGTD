@@ -333,7 +333,7 @@ public struct TagPickerView: View {
             logger.log("✅ Loaded \(availableTags.count) available tags, \(nodeTags.count) attached", category: "TagPickerView")
         } catch {
             errorMessage = "Failed to load tags: \(error.localizedDescription)"
-            logger.log("❌ Failed to load tags: \(error)", level: .error, category: "TagPickerView")
+            logger.log("❌ Failed to load tags: \(error)", category: "TagPickerView", level: .error)
         }
         
         isLoading = false
@@ -349,7 +349,7 @@ public struct TagPickerView: View {
             filteredTags = try await dataManager.searchTags(query: query, limit: 10)
             logger.log("✅ Found \(filteredTags.count) tags for query: \(query)", category: "TagPickerView")
         } catch {
-            logger.log("❌ Failed to search tags: \(error)", level: .error, category: "TagPickerView")
+            logger.log("❌ Failed to search tags: \(error)", category: "TagPickerView", level: .error)
             // Fall back to local filtering
             let lowercasedQuery = query.lowercased()
             filteredTags = availableTags.filter { 
@@ -374,7 +374,7 @@ public struct TagPickerView: View {
             }
         } catch {
             errorMessage = "Failed to update tag: \(error.localizedDescription)"
-            logger.log("❌ Failed to toggle tag: \(error)", level: .error, category: "TagPickerView")
+            logger.log("❌ Failed to toggle tag: \(error)", category: "TagPickerView", level: .error)
         }
     }
     
@@ -401,7 +401,7 @@ public struct TagPickerView: View {
             logger.log("✅ Created and attached tag: \(tag.name)", category: "TagPickerView")
         } catch {
             errorMessage = "Failed to create tag: \(error.localizedDescription)"
-            logger.log("❌ Failed to create tag: \(error)", level: .error, category: "TagPickerView")
+            logger.log("❌ Failed to create tag: \(error)", category: "TagPickerView", level: .error)
         }
     }
 

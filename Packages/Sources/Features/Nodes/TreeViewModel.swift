@@ -604,8 +604,16 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 }
                 break
 
-            case 17: // T - Tags
+            case 5: // G - ATTEMPT 8: Test alternative key for tags
+                logger.log("🧪 ATTEMPT 8: Cmd+G test - calling performAction(.showTags)", category: "KEYBOARD-TEST")
                 performAction(.showTags)
+                logger.log("✅ ATTEMPT 8: Cmd+G test - performAction(.showTags) completed", category: "KEYBOARD-TEST")
+                return true
+
+            case 17: // T - Tags
+                logger.log("🎯 ATTEMPT 8: Cmd+T detected - calling performAction(.showTags)", category: "KEYBOARD-VM")
+                performAction(.showTags)
+                logger.log("✅ ATTEMPT 8: performAction(.showTags) completed", category: "KEYBOARD-VM")
                 return true
 
             case 14: // E - Execute smart folder
@@ -780,9 +788,9 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Perform a node action
     func performAction(_ action: NodeAction, nodeId: String? = nil) {
-        let targetNodeId = nodeId ?? selectedNodeId
+        let targetNodeId = nodeId ?? selectedNodeId ?? focusedNodeId
         guard let targetId = targetNodeId else {
-            logger.log("⚠️ No node selected for action: \(action)", category: "TreeViewModel")
+            logger.log("⚠️ No node selected or focused for action: \(action)", category: "TreeViewModel")
             return
         }
 
@@ -810,8 +818,17 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
 
         case .showTags:
+            logger.log("🎯 ATTEMPT 8: performAction(.showTags) called", category: "KEYBOARD-VM")
+            logger.log("  - node.id: \(node.id)", category: "KEYBOARD-VM")
+            logger.log("  - node.nodeType: \(node.nodeType)", category: "KEYBOARD-VM")
             if node.nodeType != "smart_folder" {
+                logger.log("  ✅ Setting showingTagPickerForNode = \(node.title)", category: "KEYBOARD-VM")
+                logger.log("  🔍 ATTEMPT 10: Before setting - showingTagPickerForNode = \(showingTagPickerForNode?.title ?? "nil")", category: "UI-STATE")
                 showingTagPickerForNode = node
+                logger.log("  🔍 ATTEMPT 10: After setting - showingTagPickerForNode = \(showingTagPickerForNode?.title ?? "nil")", category: "UI-STATE")
+                logger.log("  🔍 ATTEMPT 10: Node being set - id: \(node.id), title: \(node.title), type: \(node.nodeType)", category: "UI-STATE")
+            } else {
+                logger.log("  ❌ Not showing tag picker for smart_folder", category: "KEYBOARD-VM")
             }
 
         case .executeSmartFolder:
@@ -1185,7 +1202,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         // Get the default folder ID
         guard let defaultNodeId = await dataManager.getDefaultFolder() else {
-            logger.log("⚠️ No default folder set", level: .warning, category: "TreeViewModel")
+            logger.log("⚠️ No default folder set", category: "TreeViewModel", level: .warning)
             // Could show an alert here
             return
         }
@@ -1214,7 +1231,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     func executeSmartFolder(_ node: Node) async {
 
         guard let dataManager = dataManager else {
-            logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
+            logger.log("⚠️ No DataManager available", category: "TreeViewModel", level: .warning)
             return
         }
 
@@ -1245,7 +1262,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     func instantiateTemplate(_ template: Node) async {
 
         guard let dataManager = dataManager else {
-            logger.log("⚠️ No DataManager available", level: .warning, category: "TreeViewModel")
+            logger.log("⚠️ No DataManager available", category: "TreeViewModel", level: .warning)
             return
         }
 
@@ -1301,7 +1318,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 }
             }
         } else {
-            logger.log("❌ Failed to instantiate template", level: .error, category: "TreeViewModel")
+            logger.log("❌ Failed to instantiate template", category: "TreeViewModel", level: .error)
         }
     }
 

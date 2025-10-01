@@ -38,7 +38,7 @@ public extension APIClient {
             logger.log("✅ Retrieved default node: \(response.nodeId ?? "nil")", category: "APIClient")
             return response.nodeId
         } catch {
-            logger.log("❌ Failed to get default node: \(error)", level: .error, category: "APIClient")
+            logger.log("❌ Failed to get default node: \(error)", category: "APIClient", level: .error)
             throw error
         }
     }
@@ -62,7 +62,7 @@ public extension APIClient {
 
             logger.log("✅ Default node set successfully", category: "APIClient")
         } catch {
-            logger.log("❌ Failed to set default node: \(error)", level: .error, category: "APIClient")
+            logger.log("❌ Failed to set default node: \(error)", category: "APIClient", level: .error)
             throw error
         }
     }

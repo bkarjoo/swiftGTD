@@ -378,7 +378,7 @@ public class DataManager: ObservableObject {
 
                 // SAFETY CHECK: Don't wipe data if server returns empty when we had data
                 if allNodes.isEmpty && !nodes.isEmpty {
-                    logger.log("⚠️ Server returned empty nodes but we have \(nodes.count) cached - keeping cache", level: .warning, category: "DataManager")
+                    logger.log("⚠️ Server returned empty nodes but we have \(nodes.count) cached - keeping cache", category: "DataManager", level: .warning)
                     errorMessage = "Server returned no data - using cache"
                     await loadFromCache()
                     isLoading = false
@@ -402,7 +402,7 @@ public class DataManager: ObservableObject {
                 logger.log("✅ Sync completed", category: "DataManager")
 
             } catch {
-                logger.log("❌ API call failed with error: \(error)", level: .error, category: "DataManager")
+                logger.log("❌ API call failed with error: \(error)", category: "DataManager", level: .error)
                 errorMessage = "Sync failed. Loading from cache..."
 
                 // Fall back to cache
@@ -642,7 +642,7 @@ public class DataManager: ObservableObject {
             let defaultNodeId = try await api.getDefaultNode()
             return defaultNodeId
         } catch {
-            logger.log("❌ Failed to get default folder: \(error)", level: .error, category: "DataManager")
+            logger.log("❌ Failed to get default folder: \(error)", category: "DataManager", level: .error)
             return nil
         }
     }
@@ -653,7 +653,7 @@ public class DataManager: ObservableObject {
             try await api.setDefaultNode(nodeId: nodeId)
             return true
         } catch {
-            logger.log("❌ Failed to set default folder: \(error)", level: .error, category: "DataManager")
+            logger.log("❌ Failed to set default folder: \(error)", category: "DataManager", level: .error)
             return false
         }
     }
@@ -671,7 +671,7 @@ public class DataManager: ObservableObject {
             // Do not perform a sync or refresh here; caller handles targeted refresh/retry
             return newNode
         } catch {
-            logger.log("❌ Failed to instantiate template: \(error)", level: .error, category: "DataManager")
+            logger.log("❌ Failed to instantiate template: \(error)", category: "DataManager", level: .error)
             errorMessage = "Failed to instantiate template: \(error.localizedDescription)"
             return nil
         }
@@ -828,7 +828,7 @@ public class DataManager: ObservableObject {
             let resultNodes = try await api.executeSmartFolderRule(smartFolderId: nodeId)
             return resultNodes
         } catch {
-            logger.log("❌ Failed to execute smart folder: \(error)", level: .error, category: "DataManager")
+            logger.log("❌ Failed to execute smart folder: \(error)", category: "DataManager", level: .error)
             errorMessage = "Failed to execute smart folder: \(error.localizedDescription)"
             return []
         }

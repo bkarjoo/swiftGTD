@@ -42,7 +42,7 @@ public struct TreeNodeView: View {
     let onShowDetails: ((Node) -> Void)?  // Show details (unified method)
 
     @State private var showingDetailsForNode: Node?
-    @State private var showingTagPickerForNode: Node?
+    // ATTEMPT 11: Removed local showingTagPickerForNode - use ViewModel's instead
     @State private var editingText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var dropTargetPosition: DropPosition = .none
@@ -172,10 +172,11 @@ public struct TreeNodeView: View {
                     if node.nodeType != "smart_folder" {
                         Button(action: {
                             logger.log("🔘 Tags selected for node: \(node.id) - \(node.title)", category: "TreeNodeView")
+                            // ATTEMPT 11: Always use callback, no local state fallback
                             if let onShowTagPicker = onShowTagPicker {
                                 onShowTagPicker(node)
                             } else {
-                                showingTagPickerForNode = node
+                                logger.log("⚠️ ATTEMPT 11: No onShowTagPicker callback provided!", category: "TreeNodeView")
                             }
                         }) {
                             Label("Tags", systemImage: "tag")
@@ -251,12 +252,7 @@ public struct TreeNodeView: View {
         .sheet(item: $showingDetailsForNode) { node in
             NodeDetailsView(nodeId: node.id, treeViewModel: nil)
         }
-        .sheet(item: $showingTagPickerForNode) { node in
-            TagPickerView(node: node) {
-                // Just update the single node to show updated tags
-                await onUpdateSingleNode(node.id)
-            }
-        }
+        // ATTEMPT 11: Removed duplicate sheet for tag picker - handled at TreeView_macOS level
         .sheet(item: $showingNoteEditorForNode) { node in
             NoteEditorView(node: node) {
                 // Refresh to show updated note

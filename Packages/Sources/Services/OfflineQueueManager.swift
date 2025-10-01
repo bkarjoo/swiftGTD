@@ -92,7 +92,7 @@ public class OfflineQueueManager: ObservableObject {
             
             logger.log("✅ Queued create operation", category: "OfflineQueue")
         } catch {
-            logger.log("❌ Failed to queue create: \(error)", level: .error, category: "OfflineQueue")
+            logger.log("❌ Failed to queue create: \(error)", category: "OfflineQueue", level: .error)
         }
     }
     
@@ -120,7 +120,7 @@ public class OfflineQueueManager: ObservableObject {
             
             logger.log("✅ Queued update operation", category: "OfflineQueue")
         } catch {
-            logger.log("❌ Failed to queue update: \(error)", level: .error, category: "OfflineQueue")
+            logger.log("❌ Failed to queue update: \(error)", category: "OfflineQueue", level: .error)
         }
     }
     
@@ -186,7 +186,7 @@ public class OfflineQueueManager: ObservableObject {
 
             logger.log("✅ Queued node update operation", category: "OfflineQueue")
         } catch {
-            logger.log("❌ Failed to queue node update: \(error)", level: .error, category: "OfflineQueue")
+            logger.log("❌ Failed to queue node update: \(error)", category: "OfflineQueue", level: .error)
         }
     }
     
@@ -212,7 +212,7 @@ public class OfflineQueueManager: ObservableObject {
                 try data.write(to: queueURL)
                 Logger.shared.log("💾 Saved \(pendingOperations.count) pending operations", category: "OfflineQueue")
             } catch {
-                Logger.shared.log("❌ Failed to save queue: \(error)", level: .error, category: "OfflineQueue")
+                Logger.shared.log("❌ Failed to save queue: \(error)", category: "OfflineQueue", level: .error)
             }
         }.value
     }
@@ -235,7 +235,7 @@ public class OfflineQueueManager: ObservableObject {
                 Logger.shared.log("📦 Loaded \(operations.count) pending operations", category: "OfflineQueue")
                 return operations
             } catch {
-                Logger.shared.log("❌ Failed to load queue: \(error)", level: .error, category: "OfflineQueue")
+                Logger.shared.log("❌ Failed to load queue: \(error)", category: "OfflineQueue", level: .error)
                 return nil
             }
         }.value
@@ -321,7 +321,7 @@ public class OfflineQueueManager: ObservableObject {
         // SAFETY CHECK: Warn if there are many deletes
         let deleteCount = sortedOps.filter { $0.type == .delete }.count
         if deleteCount > 10 {
-            logger.log("⚠️ WARNING: About to sync \(deleteCount) delete operations!", level: .warning, category: "OfflineQueue")
+            logger.log("⚠️ WARNING: About to sync \(deleteCount) delete operations!", category: "OfflineQueue", level: .warning)
             // Could add user confirmation here in the future
         }
         
@@ -334,7 +334,7 @@ public class OfflineQueueManager: ObservableObject {
                 logger.log("✅ Successfully processed \(operation.type) operation", category: "OfflineQueue")
             } else {
                 failed += 1
-                logger.log("❌ Failed to sync operation: \(operation.type) for \(operation.metadata["title"] ?? operation.nodeId ?? "unknown")", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to sync operation: \(operation.type) for \(operation.metadata["title"] ?? operation.nodeId ?? "unknown")", category: "OfflineQueue", level: .error)
             }
         }
 
@@ -358,12 +358,12 @@ public class OfflineQueueManager: ObservableObject {
         switch operation.type {
         case .create:
             guard let nodeData = operation.nodeData else {
-                logger.log("❌ No node data in create operation", level: .error, category: "OfflineQueue")
+                logger.log("❌ No node data in create operation", category: "OfflineQueue", level: .error)
                 return false
             }
 
             guard let node = try? JSONDecoder().decode(Node.self, from: nodeData) else {
-                logger.log("❌ Failed to decode node data", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to decode node data", category: "OfflineQueue", level: .error)
                 return false
             }
             
@@ -401,7 +401,7 @@ public class OfflineQueueManager: ObservableObject {
                 logger.log("✅ Created node on server: \(node.title) (temp: \(node.id) → server: \(createdNode.id))", category: "OfflineQueue")
                 return true
             } catch {
-                logger.log("❌ Failed to create node: \(error)", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to create node: \(error)", category: "OfflineQueue", level: .error)
                 return false
             }
             
@@ -423,7 +423,7 @@ public class OfflineQueueManager: ObservableObject {
                 logger.log("✅ Deleted node on server: \(actualNodeId)", category: "OfflineQueue")
                 return true
             } catch {
-                logger.log("❌ Failed to delete node: \(error)", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to delete node: \(error)", category: "OfflineQueue", level: .error)
                 return false
             }
             
@@ -440,7 +440,7 @@ public class OfflineQueueManager: ObservableObject {
                 logger.log("✅ Toggled task on server: \(actualNodeId) to \(completed ? "completed" : "uncompleted")", category: "OfflineQueue")
                 return true
             } catch {
-                logger.log("❌ Failed to toggle task: \(error)", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to toggle task: \(error)", category: "OfflineQueue", level: .error)
                 return false
             }
             
@@ -465,7 +465,7 @@ public class OfflineQueueManager: ObservableObject {
                 logger.log("✅ Updated node on server: \(actualNodeId) with title: \(update.title)", category: "OfflineQueue")
                 return true
             } catch {
-                logger.log("❌ Failed to update node: \(error)", level: .error, category: "OfflineQueue")
+                logger.log("❌ Failed to update node: \(error)", category: "OfflineQueue", level: .error)
                 return false
             }
         }

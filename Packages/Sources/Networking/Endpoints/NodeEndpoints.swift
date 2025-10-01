@@ -37,8 +37,8 @@ public extension APIClient {
             logger.log("✅ API Response: Retrieved ALL \(nodes.count) nodes for offline cache", category: "APIClient")
             return nodes
         } catch {
-            logger.log("❌ getAllNodes() failed: \(error)", level: .error, category: "APIClient")
-            logger.log("📊 Error type: \(type(of: error))", level: .error, category: "APIClient")
+            logger.log("❌ getAllNodes() failed: \(error)", category: "APIClient", level: .error)
+            logger.log("📊 Error type: \(type(of: error))", category: "APIClient", level: .error)
             throw error
         }
     }
@@ -464,9 +464,9 @@ public extension APIClient {
 
             return nodes
         } catch {
-            logger.log("❌ Smart folder API call failed", level: .error, category: "APIClient")
-            logger.log("🔴 Endpoint: \(endpoint)", level: .error, category: "APIClient")
-            logger.log("🔴 Error: \(error)", level: .error, category: "APIClient")
+            logger.log("❌ Smart folder API call failed", category: "APIClient", level: .error)
+            logger.log("🔴 Endpoint: \(endpoint)", category: "APIClient", level: .error)
+            logger.log("🔴 Error: \(error)", category: "APIClient", level: .error)
             throw error
         }
     }

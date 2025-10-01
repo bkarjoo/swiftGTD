@@ -72,14 +72,14 @@ public class CacheManager {
                 try data.write(to: url)
                 Logger.shared.log("💾 Cached \(nodes.count) nodes (\(data.count) bytes)", category: "CacheManager")
             } catch {
-                Logger.shared.log("❌ Failed to cache nodes: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to cache nodes: \(error)", category: "CacheManager", level: .error)
             }
         }.value
 
         // Check if auto-cleanup needed after save
         await checkAndPerformAutoCleanup()
     }
-    
+
     /// Save all tags to cache
     public func saveTags(_ tags: [Tag]) async {
         let tagsCacheFile = self.tagsCacheFile
@@ -93,11 +93,11 @@ public class CacheManager {
                 try data.write(to: url)
                 Logger.shared.log("💾 Cached \(tags.count) tags", category: "CacheManager")
             } catch {
-                Logger.shared.log("❌ Failed to cache tags: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to cache tags: \(error)", category: "CacheManager", level: .error)
             }
         }.value
     }
-    
+
     /// Save all rules to cache
     public func saveRules(_ rules: [Rule]) async {
         let rulesCacheFile = self.rulesCacheFile
@@ -111,7 +111,7 @@ public class CacheManager {
                 try data.write(to: url)
                 Logger.shared.log("💾 Cached \(rules.count) rules", category: "CacheManager")
             } catch {
-                Logger.shared.log("❌ Failed to cache rules: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to cache rules: \(error)", category: "CacheManager", level: .error)
             }
         }.value
     }
@@ -134,7 +134,7 @@ public class CacheManager {
             try data.write(to: url)
             logger.log("💾 Saved cache metadata", category: "CacheManager")
         } catch {
-            logger.log("❌ Failed to save metadata: \(error)", level: .error, category: "CacheManager")
+            logger.log("❌ Failed to save metadata: \(error)", category: "CacheManager", level: .error)
         }
     }
     
@@ -160,12 +160,12 @@ public class CacheManager {
                 Logger.shared.log("📦 Loaded \(nodes.count) nodes from cache", category: "CacheManager")
                 return nodes
             } catch {
-                Logger.shared.log("❌ Failed to load nodes from cache: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to load nodes from cache: \(error)", category: "CacheManager", level: .error)
                 return nil
             }
         }.value
     }
-    
+
     /// Load all tags from cache
     public func loadTags() async -> [Tag]? {
         let tagsCacheFile = self.tagsCacheFile
@@ -186,12 +186,12 @@ public class CacheManager {
                 Logger.shared.log("📦 Loaded \(tags.count) tags from cache", category: "CacheManager")
                 return tags
             } catch {
-                Logger.shared.log("❌ Failed to load tags from cache: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to load tags from cache: \(error)", category: "CacheManager", level: .error)
                 return nil
             }
         }.value
     }
-    
+
     /// Load all rules from cache
     public func loadRules() async -> [Rule]? {
         let rulesCacheFile = self.rulesCacheFile
@@ -212,7 +212,7 @@ public class CacheManager {
                 Logger.shared.log("📦 Loaded \(rules.count) rules from cache", category: "CacheManager")
                 return rules
             } catch {
-                Logger.shared.log("❌ Failed to load rules from cache: \(error)", level: .error, category: "CacheManager")
+                Logger.shared.log("❌ Failed to load rules from cache: \(error)", category: "CacheManager", level: .error)
                 return nil
             }
         }.value
@@ -235,7 +235,7 @@ public class CacheManager {
             logger.log("📦 Cache last synced: \(metadata.lastSyncDate)", category: "CacheManager")
             return metadata
         } catch {
-            logger.log("❌ Failed to load metadata: \(error)", level: .error, category: "CacheManager")
+            logger.log("❌ Failed to load metadata: \(error)", category: "CacheManager", level: .error)
             return nil
         }
     }
@@ -292,7 +292,7 @@ public class CacheManager {
             at: cacheDir,
             includingPropertiesForKeys: [.contentModificationDateKey, .nameKey]
         ) else {
-            logger.log("⚠️ Could not enumerate cache directory", level: .warning, category: "CacheManager")
+            logger.log("⚠️ Could not enumerate cache directory", category: "CacheManager", level: .warning)
             return 0
         }
         
@@ -314,7 +314,7 @@ public class CacheManager {
                 }
             } catch {
                 logger.log("❌ Error processing cache file \(filename): \(error)", 
-                          level: .error, category: "CacheManager")
+                          category: "CacheManager", level: .error)
             }
         }
         
@@ -353,7 +353,7 @@ public class CacheManager {
                 }
             } catch {
                 logger.log("❌ Error reading file attributes: \(error)", 
-                          level: .error, category: "CacheManager")
+                          category: "CacheManager", level: .error)
             }
         }
         
@@ -387,7 +387,7 @@ public class CacheManager {
                 logger.log("🗑️ Removed \(filename) to enforce size limit", category: "CacheManager")
             } catch {
                 logger.log("❌ Error removing file \(filename): \(error)", 
-                          level: .error, category: "CacheManager")
+                          category: "CacheManager", level: .error)
             }
         }
         

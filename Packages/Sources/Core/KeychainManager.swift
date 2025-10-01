@@ -34,7 +34,7 @@ public class KeychainManager {
 
         // Convert token to data
         guard let data = token.data(using: .utf8) else {
-            logger.log("❌ Failed to convert token to data", level: .error, category: "Keychain")
+            logger.log("❌ Failed to convert token to data", category: "Keychain", level: .error)
             return false
         }
 
@@ -61,7 +61,7 @@ public class KeychainManager {
             logger.log("✅ Token saved to Keychain", category: "Keychain")
             return true
         } else {
-            logger.log("❌ Failed to save token: \(status)", level: .error, category: "Keychain")
+            logger.log("❌ Failed to save token: \(status)", category: "Keychain", level: .error)
             return false
         }
     }
@@ -100,7 +100,7 @@ public class KeychainManager {
             logger.log("⚠️ No token found in Keychain", category: "Keychain")
             return nil
         } else {
-            logger.log("❌ Failed to retrieve token: \(status)", level: .error, category: "Keychain")
+            logger.log("❌ Failed to retrieve token: \(status)", category: "Keychain", level: .error)
             return nil
         }
     }
@@ -127,7 +127,7 @@ public class KeychainManager {
             logger.log("✅ Token deleted from Keychain", category: "Keychain")
             return true
         } else {
-            logger.log("❌ Failed to delete token: \(status)", level: .error, category: "Keychain")
+            logger.log("❌ Failed to delete token: \(status)", category: "Keychain", level: .error)
             return false
         }
     }
