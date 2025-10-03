@@ -161,23 +161,48 @@ public struct SettingsView_macOS: View {
                 }
 
                 GroupBox(label: Text("Data Management").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        NavigationLink(destination: TagManagementView()) {
-                            HStack {
-                                Image(systemName: "tag.circle.fill")
-                                    .foregroundColor(.blue)
-                                Text("Manage Tags")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 15) {
+                        // Tags management
+                        VStack(alignment: .leading, spacing: 5) {
+                            NavigationLink(destination: TagManagementView()) {
+                                HStack {
+                                    Image(systemName: "tag.circle.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Manage Tags")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 5)
                             }
-                            .padding(.vertical, 5)
-                        }
-                        .buttonStyle(.plain)
+                            .buttonStyle(.plain)
 
-                        Text("Create, rename, and delete tags")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            Text("Create, rename, and delete tags")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Rules management
+                        VStack(alignment: .leading, spacing: 5) {
+                            NavigationLink(destination: ManageRulesView()) {
+                                HStack {
+                                    Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                        .foregroundColor(.purple)
+                                    Text("Manage Rules")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 5)
+                            }
+                            .buttonStyle(.plain)
+
+                            Text("Create and manage smart folder filter rules")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .padding(.vertical, 5)
                 }
