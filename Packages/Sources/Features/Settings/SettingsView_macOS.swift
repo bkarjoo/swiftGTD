@@ -160,6 +160,28 @@ public struct SettingsView_macOS: View {
                     }
                 }
 
+                GroupBox(label: Text("Data Management").font(.headline)) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        NavigationLink(destination: TagManagementView()) {
+                            HStack {
+                                Image(systemName: "tag.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("Manage Tags")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 5)
+                        }
+                        .buttonStyle(.plain)
+
+                        Text("Create, rename, and delete tags")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 5)
+                }
+
                 GroupBox(label: Text("API Settings").font(.headline)) {
                     HStack {
                         Text("API URL")
@@ -170,7 +192,7 @@ public struct SettingsView_macOS: View {
                     }
                     .padding(.vertical, 5)
                 }
-                
+
                 GroupBox(label: Text("About").font(.headline)) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {

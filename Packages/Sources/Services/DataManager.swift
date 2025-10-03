@@ -820,6 +820,25 @@ public class DataManager: ObservableObject {
         return try await api.getTags()
     }
 
+    /// Update a tag's name - may result in merge with existing tag
+    /// Returns the updated tag and a boolean indicating if it was merged
+    public func updateTag(id: String, name: String) async throws -> (tag: Tag, wasMerged: Bool) {
+        let (updatedTag, wasMerged) = try await api.updateTag(id: id, name: name)
+
+        // Refresh tags list after update
+        tags = try await api.getTags()
+
+        return (updatedTag, wasMerged)
+    }
+
+    /// Delete a tag
+    public func deleteTag(id: String) async throws {
+        try await api.deleteTag(id: id)
+
+        // Refresh tags list after deletion
+        tags = try await api.getTags()
+    }
+
     // MARK: - Smart Folder Execution
 
     /// Executes a smart folder rule and returns the result nodes

@@ -19,6 +19,8 @@ public protocol APIClientProtocol {
     func getTags() async throws -> [Tag]
     func searchTags(query: String, limit: Int) async throws -> [Tag]
     func createTag(name: String, description: String?, color: String?) async throws -> Tag
+    func updateTag(id: String, name: String) async throws -> (tag: Tag, wasMerged: Bool)
+    func deleteTag(id: String) async throws
     func attachTagToNode(nodeId: String, tagId: String) async throws
     func detachTagFromNode(nodeId: String, tagId: String) async throws
     

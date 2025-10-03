@@ -101,6 +101,16 @@ public struct SettingsView_iOS: View {
                     .padding(.vertical, 4)
                 }
                 
+                Section(header: Text("Data Management")) {
+                    NavigationLink(destination: TagManagementView()) {
+                        HStack {
+                            Image(systemName: "tag.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("Manage Tags")
+                        }
+                    }
+                }
+
                 Section(header: Text("API Settings")) {
                     HStack {
                         Text("API URL")
@@ -110,7 +120,7 @@ public struct SettingsView_iOS: View {
                             .font(.caption)
                     }
                 }
-                
+
                 Section(header: Text("About")) {
                     HStack {
                         Text("Version")

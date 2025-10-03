@@ -101,14 +101,86 @@ public extension APIClient {
     
     func getNodeTags(nodeId: String) async throws -> [Tag] {
         logger.log("📞 Getting tags for node \(nodeId)", category: "TagEndpoints")
-        
+
         let response = try await makeRequest(
             endpoint: "/nodes/\(nodeId)/tags",
             method: "GET",
             responseType: [Tag].self
         )
-        
+
         logger.log("✅ Retrieved \(response.count) tags for node", category: "TagEndpoints")
         return response
+    }
+
+    func updateTag(id: String, name: String) async throws -> (tag: Tag, wasMerged: Bool) {
+        logger.log("📞 Updating tag \(id) with name: \(name)", category: "TagEndpoints")
+
+        // Validate input
+        try InputValidator.validateTagName(name)
+
+        // Create request body for PUT request
+        struct UpdateTagRequest: Codable {
+            let name: String
+        }
+
+        let requestBody = UpdateTagRequest(name: name)
+        let encoder = JSONEncoder()
+        let bodyData = try encoder.encode(requestBody)
+
+        logger.log("🔵 Updating tag with body: \(name)", category: "TagEndpoints")
+
+        // Custom response structure to handle merged tags
+        struct TagUpdateResponse: Codable {
+            let id: String
+            let name: String
+            let color: String?
+            let description: String?
+            let createdAt: String?
+            let merged: Bool?
+            let message: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, name, color, description
+                case createdAt = "created_at"
+                case merged, message
+            }
+        }
+
+        let response = try await makeRequest(
+            endpoint: "/tags/\(id)",
+            method: "PUT",
+            body: bodyData,
+            responseType: TagUpdateResponse.self
+        )
+
+        let wasMerged = response.merged ?? false
+
+        if wasMerged {
+            logger.log("⚠️ Tag was merged with existing tag: \(response.message ?? "no message")", category: "TagEndpoints")
+        } else {
+            logger.log("✅ Tag updated successfully: \(response.name)", category: "TagEndpoints")
+        }
+
+        let tag = Tag(
+            id: response.id,
+            name: response.name,
+            color: response.color,
+            description: response.description,
+            createdAt: response.createdAt
+        )
+
+        return (tag, wasMerged)
+    }
+
+    func deleteTag(id: String) async throws {
+        logger.log("📞 Deleting tag \(id)", category: "TagEndpoints")
+
+        _ = try await makeRequest(
+            endpoint: "/tags/\(id)",
+            method: "DELETE",
+            responseType: EmptyResponse.self
+        )
+
+        logger.log("✅ Tag deleted successfully", category: "TagEndpoints")
     }
 }
