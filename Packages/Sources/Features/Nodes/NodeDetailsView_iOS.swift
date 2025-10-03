@@ -141,7 +141,7 @@ struct NodeDetailsView_iOS: View {
                         .foregroundColor(.primary)
                     Spacer()
                     if let parentId = viewModel.parentId,
-                       let parent = viewModel.availableParents.first(where: { $0.id == parentId }) {
+                       let parent = dataManager.nodes.first(where: { $0.id == parentId }) {
                         Text(parent.title)
                             .foregroundColor(.secondary)
                     } else {

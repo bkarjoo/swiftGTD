@@ -172,7 +172,7 @@ struct NodeDetailsView_macOS: View {
                     }) {
                         HStack {
                             if let parentId = viewModel.parentId,
-                               let parent = viewModel.availableParents.first(where: { $0.id == parentId }) {
+                               let parent = dataManager.nodes.first(where: { $0.id == parentId }) {
                                 Image(systemName: Icons.nodeIcon(for: parent.nodeType))
                                     .foregroundColor(Icons.nodeColor(for: parent.nodeType))
                                 Text(parent.title)
