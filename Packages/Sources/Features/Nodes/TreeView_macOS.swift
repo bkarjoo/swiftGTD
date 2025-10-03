@@ -1032,6 +1032,7 @@ public struct CreateNodeSheet: View {
     @ObservedObject var viewModel: TreeViewModel
     @Environment(\.dismiss) var dismiss
     @FocusState private var isTitleFocused: Bool
+    @State private var isSubmitting = false
 
     public init(viewModel: TreeViewModel) {
         self.viewModel = viewModel
@@ -1059,7 +1060,11 @@ public struct CreateNodeSheet: View {
             TextField(fieldPlaceholder, text: $viewModel.createNodeTitle)
                 .textFieldStyle(.roundedBorder)
                 .focused($isTitleFocused)
-                .onSubmit { submit() }
+                .onSubmit {
+                    if !isSubmitting {
+                        submit()
+                    }
+                }
                 .frame(minWidth: 300)
 
             // Divider + buttons
@@ -1067,9 +1072,13 @@ public struct CreateNodeSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Create") { submit() }
+                Button("Create") {
+                    if !isSubmitting {
+                        submit()
+                    }
+                }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(viewModel.createNodeTitle.isEmpty)
+                    .disabled(viewModel.createNodeTitle.isEmpty || isSubmitting)
             }
         }
         .padding(20)
@@ -1089,7 +1098,9 @@ public struct CreateNodeSheet: View {
     }
 
     private func submit() {
-        guard !viewModel.createNodeTitle.isEmpty else { return }
+        guard !viewModel.createNodeTitle.isEmpty, !isSubmitting else { return }
+
+        isSubmitting = true
         Task {
             // Use createNodeParentId if set (for quick add), otherwise use focusedNodeId
             let parentId = viewModel.createNodeParentId ?? viewModel.focusedNodeId

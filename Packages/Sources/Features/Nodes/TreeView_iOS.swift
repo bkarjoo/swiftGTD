@@ -295,7 +295,8 @@ private struct TreeToolbar: ToolbarContent {
 private struct CreateNodeSheet: View {
     @ObservedObject var viewModel: TreeViewModel
     @Environment(\.dismiss) var dismiss
-    
+    @State private var isSubmitting = false
+
     private var createNodeTypeTitle: String {
         switch viewModel.createNodeType {
         case "folder": return "Folder"
@@ -313,6 +314,18 @@ private struct CreateNodeSheet: View {
                 Section("New \(createNodeTypeTitle)") {
                     TextField("Title", text: $viewModel.createNodeTitle)
                         .textInputAutocapitalization(.sentences)
+                        .onSubmit {
+                            guard !isSubmitting, !viewModel.createNodeTitle.isEmpty else { return }
+                            isSubmitting = true
+                            Task {
+                                await viewModel.createNode(
+                                    type: viewModel.createNodeType,
+                                    title: viewModel.createNodeTitle,
+                                    parentId: viewModel.focusedNodeId
+                                )
+                                dismiss()
+                            }
+                        }
                 }
                 
                 if let focusedNode = viewModel.focusedNode {
@@ -333,6 +346,8 @@ private struct CreateNodeSheet: View {
                 
                 ToolbarItem(placement: .primaryAction) {
                     Button("Create") {
+                        guard !isSubmitting else { return }
+                        isSubmitting = true
                         Task {
                             await viewModel.createNode(
                                 type: viewModel.createNodeType,
@@ -342,7 +357,7 @@ private struct CreateNodeSheet: View {
                             dismiss()
                         }
                     }
-                    .disabled(viewModel.createNodeTitle.isEmpty)
+                    .disabled(viewModel.createNodeTitle.isEmpty || isSubmitting)
                 }
             }
         }
