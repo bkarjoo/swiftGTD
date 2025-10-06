@@ -264,6 +264,12 @@ public struct TabbedTreeView: View {
             newTab.title = tabName
         }
 
+        // Set the DataManager and load initial data
+        newTab.viewModel.setDataManager(dataManager)
+        Task {
+            await newTab.viewModel.initialLoad()
+        }
+
         tabs.append(newTab)
         selectedTabId = newTab.id
         // onChange(of: selectedTabId) will handle subscription setup and saving
