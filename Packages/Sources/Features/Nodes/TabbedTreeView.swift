@@ -120,6 +120,12 @@ public struct TabbedTreeView: View {
                     }
                 }
         }
+        .background(WindowAccessor(window: $hostingWindow) {
+            // Re-setup monitor when window is captured
+            if self.keyEventMonitor == nil {
+                self.setupKeyEventMonitor()
+            }
+        })
         .onAppear {
             if !hasRestoredState {
                 restoreState()
@@ -128,7 +134,6 @@ public struct TabbedTreeView: View {
             setupKeyEventMonitor()
             setupStateChangeObservers()
         }
-        .background(WindowAccessor(window: $hostingWindow))
         .onDisappear {
             if let monitor = keyEventMonitor {
                 NSEvent.removeMonitor(monitor)
@@ -268,8 +273,16 @@ public struct TabbedTreeView: View {
             newTab.title = tabName
         }
 
+        // Set DataManager and load initial data
+        newTab.viewModel.setDataManager(dataManager)
+
         tabs.append(newTab)
         selectedTabId = newTab.id
+
+        // Load data for the new tab
+        Task {
+            await newTab.viewModel.initialLoad()
+        }
         // onChange(of: selectedTabId) will handle subscription setup and saving
     }
 
@@ -299,10 +312,16 @@ public struct TabbedTreeView: View {
             NSEvent.removeMonitor(monitor)
         }
 
+        logger.log("🔧 Setting up key event monitor for window \(windowId), hostingWindow: \(hostingWindow != nil ? "set" : "nil")", category: "KEYBOARD-MONITOR")
+
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             // Only process events if this TabbedTreeView's window is the key window
-            guard let ourWindow = self.hostingWindow,
-                  ourWindow.isKeyWindow else {
+            guard let ourWindow = self.hostingWindow else {
+                self.logger.log("⚠️ Window \(self.windowId): hostingWindow is nil, skipping event", category: "KEYBOARD-MONITOR")
+                return event
+            }
+
+            guard ourWindow.isKeyWindow else {
                 return event
             }
 
@@ -578,8 +597,15 @@ public struct TabbedTreeView: View {
             logger.log("ℹ️ No saved state, creating default tab", category: "TabbedTreeView")
             // No saved state, create default tab
             let defaultTab = TabModel(title: "Main")
+            defaultTab.viewModel.setDataManager(dataManager)
             tabs = [defaultTab]
             selectedTabId = defaultTab.id
+
+            // Load data for default tab
+            Task {
+                await defaultTab.viewModel.initialLoad()
+            }
+
             setupActiveTabSubscription() // Initial setup for default tab
         }
     }
