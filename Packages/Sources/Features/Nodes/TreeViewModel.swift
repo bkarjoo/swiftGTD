@@ -1161,33 +1161,83 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Copy node hierarchy to clipboard
     private func copyNodeNamesToClipboard() {
+        // Manual JSON string builder to ensure key ordering
+        func buildNodeJSONString(_ node: Node, indent: Int = 0) -> String {
+            let indentStr = String(repeating: "  ", count: indent)
+            let innerIndentStr = String(repeating: "  ", count: indent + 1)
+            var json = "{\n"
 
-        var textToCopy = ""
-        func addNodeToText(_ node: Node, level: Int) {
-            let indent = String(repeating: "  ", count: level)
-            textToCopy += "\(indent)\(node.title)\n"
+            // Always add title first
+            json += "\(innerIndentStr)\"title\": \"\(escapeJSON(node.title))\",\n"
 
-            let children = getChildren(of: node.id)
-            for child in children {
-                addNodeToText(child, level: level + 1)
+            // Always add nodeType second
+            json += "\(innerIndentStr)\"nodeType\": \"\(node.nodeType)\""
+
+            // Add status for tasks
+            if node.nodeType == "task", let taskData = node.taskData, let status = taskData.status {
+                json += ",\n\(innerIndentStr)\"status\": \"\(status)\""
             }
+
+            // Add description if exists
+            var description: String? = nil
+            if let taskData = node.taskData {
+                description = taskData.description
+            } else if let noteData = node.noteData {
+                description = noteData.body
+            } else if let folderData = node.folderData {
+                description = folderData.description
+            } else if let smartFolderData = node.smartFolderData {
+                description = smartFolderData.description
+            } else if let templateData = node.templateData {
+                description = templateData.description
+            }
+
+            if let description = description, !description.isEmpty {
+                json += ",\n\(innerIndentStr)\"description\": \"\(escapeJSON(description))\""
+            }
+
+            // Add children if any
+            let children = getChildren(of: node.id)
+            if !children.isEmpty {
+                json += ",\n\(innerIndentStr)\"children\": [\n"
+                for (index, child) in children.enumerated() {
+                    json += buildNodeJSONString(child, indent: indent + 2)
+                    if index < children.count - 1 {
+                        json += ","
+                    }
+                    json += "\n"
+                }
+                json += "\(innerIndentStr)]"
+            }
+
+            json += "\n\(indentStr)}"
+            return json
         }
 
-        // Copy focused node or selected node hierarchy
-        if let focusedId = focusedNodeId,
-           let focusedNode = nodeCache[focusedId] {
-            addNodeToText(focusedNode, level: 0)
-        } else if let selectedId = selectedNodeId,
-                  let selectedNode = nodeCache[selectedId] {
-            addNodeToText(selectedNode, level: 0)
+        // Helper function to escape JSON strings
+        func escapeJSON(_ str: String) -> String {
+            return str
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\t", with: "\\t")
         }
 
-        if !textToCopy.isEmpty {
-            #if os(macOS)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(textToCopy, forType: .string)
-            #endif
+        // Copy selected node hierarchy as JSON (only if a node is selected)
+        guard let selectedId = selectedNodeId,
+              let selectedNode = nodeCache[selectedId] else {
+            logger.log("⚠️ No node selected to copy", category: "TreeViewModel")
+            return
         }
+
+        let jsonString = buildNodeJSONString(selectedNode)
+
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(jsonString, forType: .string)
+        logger.log("📋 Copied selected node as JSON to clipboard", category: "TreeViewModel")
+        #endif
     }
 
     // MARK: - Quick Task Creation

@@ -171,7 +171,7 @@ public enum NodeType: String, Codable, CaseIterable {
     case area = "area"
     case note = "note"
     case folder = "folder"
-    
+
     public var displayName: String {
         switch self {
         case .task: return "Task"
@@ -181,7 +181,7 @@ public enum NodeType: String, Codable, CaseIterable {
         case .folder: return "Folder"
         }
     }
-    
+
     public var systemImage: String {
         switch self {
         case .task: return "checkmark.circle"
@@ -192,3 +192,4 @@ public enum NodeType: String, Codable, CaseIterable {
         }
     }
 }
+
