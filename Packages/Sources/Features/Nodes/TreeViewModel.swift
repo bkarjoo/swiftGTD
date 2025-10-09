@@ -1170,7 +1170,10 @@ public class TreeViewModel: ObservableObject, Identifiable {
             // Always add title first
             json += "\(innerIndentStr)\"title\": \"\(escapeJSON(node.title))\",\n"
 
-            // Always add nodeType second
+            // Add node ID second
+            json += "\(innerIndentStr)\"id\": \"\(node.id)\",\n"
+
+            // Always add nodeType third
             json += "\(innerIndentStr)\"nodeType\": \"\(node.nodeType)\""
 
             // Add status for tasks
