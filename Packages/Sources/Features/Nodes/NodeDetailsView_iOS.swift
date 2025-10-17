@@ -7,10 +7,17 @@ import Services
 struct NodeDetailsView_iOS: View {
     let nodeId: String
     let treeViewModel: TreeViewModel?
+    let embeddedMode: Bool
     @StateObject private var viewModel = NodeDetailsViewModel()
     @EnvironmentObject var dataManager: DataManager
     @Environment(\.dismiss) var dismiss
-    
+
+    init(nodeId: String, treeViewModel: TreeViewModel? = nil, embeddedMode: Bool = false) {
+        self.nodeId = nodeId
+        self.treeViewModel = treeViewModel
+        self.embeddedMode = embeddedMode
+    }
+
     private let logger = Logger.shared
     
     var body: some View {
