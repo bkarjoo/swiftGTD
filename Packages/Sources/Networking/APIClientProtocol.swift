@@ -14,6 +14,7 @@ public protocol APIClientProtocol {
     func createNode(_ node: Node) async throws -> Node
     func updateNode(id: String, update: NodeUpdate) async throws -> Node
     func deleteNode(id: String) async throws
+    func reorderNodes(nodeIds: [String]) async throws
     
     // Tags
     func getTags() async throws -> [Tag]

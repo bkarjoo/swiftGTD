@@ -16,6 +16,7 @@ public class OfflineQueueManager: ObservableObject {
         case delete = "delete"
         case toggleTask = "toggle_task"
         case updateNode = "update_node"
+        case reorder = "reorder"
     }
     
     // Queued operation
@@ -189,6 +190,33 @@ public class OfflineQueueManager: ObservableObject {
             logger.log("❌ Failed to queue node update: \(error)", category: "OfflineQueue", level: .error)
         }
     }
+
+    /// Queue a reorder operation for nodes
+    public func queueReorder(nodeIds: [String]) async {
+        logger.log("📝 Queuing reorder operation for \(nodeIds.count) nodes", category: "OfflineQueue")
+
+        // Remove any existing reorder operations for these nodes
+        pendingOperations.removeAll { operation in
+            if operation.type == .reorder,
+               let existingNodeIds = operation.metadata["nodeIds"]?.components(separatedBy: ",") {
+                // Remove if any nodes overlap
+                return !Set(existingNodeIds).isDisjoint(with: Set(nodeIds))
+            }
+            return false
+        }
+
+        let operation = QueuedOperation(
+            type: .reorder,
+            nodeId: nil,
+            nodeData: nil,
+            metadata: ["nodeIds": nodeIds.joined(separator: ","), "count": String(nodeIds.count)]
+        )
+
+        pendingOperations.append(operation)
+        await saveQueue()
+
+        logger.log("✅ Queued reorder operation", category: "OfflineQueue")
+    }
     
     // MARK: - Persistence
     
@@ -312,9 +340,9 @@ public class OfflineQueueManager: ObservableObject {
         var tempIdMap: [String: String] = [:]  // Maps temp IDs to server IDs
         var processedOperations: [QueuedOperation] = []
         
-        // Process operations in order (creates first, then updates, then deletes)
+        // Process operations in order (creates first, then updates, then reorders, then deletes)
         let sortedOps = pendingOperations.sorted { op1, op2 in
-            let order = [OperationType.create: 0, .update: 1, .toggleTask: 2, .delete: 3]
+            let order = [OperationType.create: 0, .update: 1, .updateNode: 1, .toggleTask: 2, .reorder: 3, .delete: 4]
             return (order[op1.type] ?? 99) < (order[op2.type] ?? 99)
         }
         
@@ -466,6 +494,26 @@ public class OfflineQueueManager: ObservableObject {
                 return true
             } catch {
                 logger.log("❌ Failed to update node: \(error)", category: "OfflineQueue", level: .error)
+                return false
+            }
+
+        case .reorder:
+            guard let nodeIdsString = operation.metadata["nodeIds"] else {
+                logger.log("❌ No node IDs in reorder operation", category: "OfflineQueue", level: .error)
+                return false
+            }
+
+            let nodeIds = nodeIdsString.components(separatedBy: ",")
+
+            // Map any temp IDs to server IDs
+            let actualNodeIds = nodeIds.map { tempIdMap[$0] ?? $0 }
+
+            do {
+                try await api.reorderNodes(nodeIds: actualNodeIds)
+                logger.log("✅ Reordered \(actualNodeIds.count) nodes on server", category: "OfflineQueue")
+                return true
+            } catch {
+                logger.log("❌ Failed to reorder nodes: \(error)", category: "OfflineQueue", level: .error)
                 return false
             }
         }

@@ -46,6 +46,7 @@ public struct TreeNodeView: View {
     let onOpenNoteEditor: ((Node) -> Void)?  // Open note editor (unified method)
     let onShowTagPicker: ((Node) -> Void)?  // Show tag picker (unified method)
     let onShowDetails: ((Node) -> Void)?  // Show details (unified method)
+    let getRootNodes: (() -> [Node])?  // Get root nodes for drag and drop
 
     @State private var showingDetailsForNode: Node?
     // ATTEMPT 11: Removed local showingTagPickerForNode - use ViewModel's instead
@@ -87,7 +88,8 @@ public struct TreeNodeView: View {
         onFocusNode: ((Node) -> Void)? = nil,
         onOpenNoteEditor: ((Node) -> Void)? = nil,
         onShowTagPicker: ((Node) -> Void)? = nil,
-        onShowDetails: ((Node) -> Void)? = nil
+        onShowDetails: ((Node) -> Void)? = nil,
+        getRootNodes: (() -> [Node])? = nil
     ) {
         self.node = node
         self.children = children
@@ -116,6 +118,7 @@ public struct TreeNodeView: View {
         self.onOpenNoteEditor = onOpenNoteEditor
         self.onShowTagPicker = onShowTagPicker
         self.onShowDetails = onShowDetails
+        self.getRootNodes = getRootNodes
     }
 
     private var isExpanded: Bool {
@@ -197,6 +200,7 @@ public struct TreeNodeView: View {
                     dropPosition: $dropTargetPosition,
                     onDrop: handleDrop
                 ))
+                #if os(macOS)
                 .contextMenu {
                     Button(action: {
                         logger.log("🔘 Details selected for node: \(node.id) - \(node.title)", category: "TreeNodeView")
@@ -277,7 +281,8 @@ public struct TreeNodeView: View {
                         Label("Delete", systemImage: "trash")
                     }
                 }
-            
+                #endif
+
             // Drop indicator line below
             if dropTargetPosition == .below {
                 Rectangle()
@@ -716,8 +721,14 @@ public struct TreeNodeView: View {
         if let parentId = draggedNode.parentId {
             siblings = nodeChildren[parentId] ?? []
         } else {
-            // Root nodes
-            siblings = getChildren("")
+            // Root nodes - use the getRootNodes callback if available
+            if let getRootNodes = getRootNodes {
+                siblings = getRootNodes()
+            } else {
+                // Fallback: can't reorder root nodes without getRootNodes callback
+                logger.log("❌ Cannot reorder root nodes - getRootNodes callback not provided", category: "TreeNodeView")
+                return false
+            }
         }
 
         // Find positions

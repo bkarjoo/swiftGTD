@@ -840,7 +840,8 @@ private struct TreeContent: View {
                 onFocusNode: viewModel.focusOnNode,
                 onOpenNoteEditor: viewModel.openNoteEditor,
                 onShowTagPicker: viewModel.showTagPicker,
-                onShowDetails: viewModel.showDetails
+                onShowDetails: viewModel.showDetails,
+                getRootNodes: viewModel.getRootNodes
             )
         } else {
             ForEach(viewModel.getRootNodes()) { node in
@@ -871,7 +872,8 @@ private struct TreeContent: View {
                     onFocusNode: viewModel.focusOnNode,
                     onOpenNoteEditor: viewModel.openNoteEditor,
                     onShowTagPicker: viewModel.showTagPicker,
-                    onShowDetails: viewModel.showDetails
+                    onShowDetails: viewModel.showDetails,
+                    getRootNodes: viewModel.getRootNodes
                 )
             }
         }

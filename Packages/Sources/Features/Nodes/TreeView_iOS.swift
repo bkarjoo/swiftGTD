@@ -181,7 +181,8 @@ private struct TreeContent: View {
                 onFocusNode: viewModel.focusOnNode,
                 onOpenNoteEditor: viewModel.openNoteEditor,
                 onShowTagPicker: viewModel.showTagPicker,
-                onShowDetails: viewModel.showDetails
+                onShowDetails: viewModel.showDetails,
+                getRootNodes: viewModel.getRootNodes
             )
         } else {
             // Normal mode - show root nodes
@@ -213,7 +214,8 @@ private struct TreeContent: View {
                     onFocusNode: viewModel.focusOnNode,
                     onOpenNoteEditor: viewModel.openNoteEditor,
                     onShowTagPicker: viewModel.showTagPicker,
-                    onShowDetails: viewModel.showDetails
+                    onShowDetails: viewModel.showDetails,
+                    getRootNodes: viewModel.getRootNodes
                 )
             }
         }

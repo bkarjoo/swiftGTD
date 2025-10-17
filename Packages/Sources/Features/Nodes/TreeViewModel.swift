@@ -466,45 +466,22 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Insert at new position
         orderedSiblings.insert(draggedNode, at: insertIndex)
 
-        // Now recalculate sort orders
-        // We'll use increments of 100 to leave room for future insertions
-        var updates: [(nodeId: String, sortOrder: Int)] = []
-        for (index, node) in orderedSiblings.enumerated() {
-            let newSortOrder = (index + 1) * 100
-            if node.sortOrder != newSortOrder {
-                updates.append((nodeId: node.id, sortOrder: newSortOrder))
-            }
-        }
+        // Extract the node IDs in the new order
+        let reorderedNodeIds = orderedSiblings.map { $0.id }
 
-        // Send updates to backend
+        // Send reorder request to backend
         guard let dataManager = dataManager else {
             logger.log("❌ No dataManager available", category: "TreeViewModel")
             return
         }
 
-        // Update each node's sort order
-        for update in updates {
-            if let node = nodeCache[update.nodeId] {
+        // Use the new reorderNodes method which handles the proper API endpoint
+        let success = await dataManager.reorderNodes(reorderedNodeIds)
 
-                let nodeUpdate = NodeUpdate(
-                    title: node.title,
-                    parentId: node.parentId,
-                    sortOrder: update.sortOrder,
-                    noteData: node.noteData.map { NoteDataUpdate(body: $0.body) }
-                )
-
-                // This will update the backend and trigger a refresh
-                _ = await dataManager.updateNode(node.id, update: nodeUpdate)
-            }
-        }
-
-        // Refresh the parent to ensure consistent ordering
-        if let parentId = draggedNode.parentId {
-            await dataManager.refreshNode(parentId)
-            // DataManager handles error recovery by preserving consistency
+        if success {
+            logger.log("✅ Nodes reordered successfully via API", category: "TreeViewModel")
         } else {
-            // For root nodes, refresh all root nodes
-            await dataManager.syncAllData()
+            logger.log("⚠️ Node reordering may have failed - check error messages", category: "TreeViewModel")
         }
 
         await MainActor.run {

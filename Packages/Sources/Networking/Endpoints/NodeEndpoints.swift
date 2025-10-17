@@ -428,6 +428,39 @@ public extension APIClient {
         logger.log("✅ Node deleted successfully", category: "APIClient")
     }
 
+    /// Reorder nodes within the same parent by updating their sort orders
+    /// - Parameter nodeIds: Array of node IDs in the desired order
+    /// - Throws: APIError if the request fails
+    func reorderNodes(nodeIds: [String]) async throws {
+        logger.log("📞 reorderNodes called with \(nodeIds.count) nodes", category: "APIClient")
+
+        struct ReorderRequest: Codable {
+            let nodeIds: [String]
+
+            enum CodingKeys: String, CodingKey {
+                case nodeIds = "node_ids"
+            }
+        }
+
+        let request = ReorderRequest(nodeIds: nodeIds)
+        let encoder = JSONEncoder()
+        let body = try encoder.encode(request)
+
+        // The backend expects a success message response
+        struct ReorderResponse: Codable {
+            let message: String
+        }
+
+        _ = try await makeRequest(
+            endpoint: "/nodes/reorder",
+            method: "POST",
+            body: body,
+            responseType: ReorderResponse.self
+        )
+
+        logger.log("✅ Nodes reordered successfully", category: "APIClient")
+    }
+
     /// Executes a smart folder rule to retrieve its dynamic contents.
     /// Smart folders are virtual containers that display nodes matching specific rules.
     ///

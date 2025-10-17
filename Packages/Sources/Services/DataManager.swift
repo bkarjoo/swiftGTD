@@ -126,7 +126,7 @@ public class DataManager: ObservableObject {
                 
                 // Add to local nodes array and update cache in one go
                 nodes.append(createdNode)
-                nodes.sort { $0.sortOrder < $1.sortOrder }
+                // Note: No need to sort the entire array - TreeViewModel handles hierarchy
                 
                 // Update cache without triggering another update
                 await cacheManager.saveNodes(nodes)
@@ -204,9 +204,9 @@ public class DataManager: ObservableObject {
                 )
             }
             
-            // Add to local nodes and sort in one update
+            // Add to local nodes
             nodes.append(newNode)
-            nodes.sort { $0.sortOrder < $1.sortOrder }
+            // Note: No need to sort the entire array - TreeViewModel handles hierarchy
             
             // Queue for sync
             await offlineQueue.queueCreate(node: newNode)
@@ -850,6 +850,90 @@ public class DataManager: ObservableObject {
             logger.log("❌ Failed to execute smart folder: \(error)", category: "DataManager", level: .error)
             errorMessage = "Failed to execute smart folder: \(error.localizedDescription)"
             return []
+        }
+    }
+
+    // MARK: - Node Reordering
+
+    /// Reorder nodes within the same parent
+    /// - Parameter nodeIds: Array of node IDs in the desired order
+    public func reorderNodes(_ nodeIds: [String]) async -> Bool {
+        logger.log("🔄 Reordering \(nodeIds.count) nodes", category: "DataManager")
+
+        if networkMonitor.isConnected {
+            // Online - reorder via API
+            do {
+                try await api.reorderNodes(nodeIds: nodeIds)
+
+                // Clear any previous error on success
+                errorMessage = nil
+
+                // Refresh the parent node to get updated sort orders
+                // Find the parent of these nodes
+                if let firstNodeId = nodeIds.first,
+                   let firstNode = nodes.first(where: { $0.id == firstNodeId }) {
+                    if let parentId = firstNode.parentId {
+                        await refreshNode(parentId)
+                    } else {
+                        // Root nodes - refresh all data
+                        await syncAllData()
+                    }
+                }
+
+                logger.log("✅ Nodes reordered successfully", category: "DataManager")
+                return true
+            } catch {
+                logger.log("❌ Failed to reorder nodes: \(error)", category: "DataManager", level: .error)
+                errorMessage = error.localizedDescription
+                return false
+            }
+        } else {
+            // Offline - update sort orders locally and queue for sync
+            logger.log("⚠️ Offline mode - updating sort orders locally", category: "DataManager")
+
+            // Update sort orders locally
+            for (index, nodeId) in nodeIds.enumerated() {
+                if let nodeIndex = nodes.firstIndex(where: { $0.id == nodeId }) {
+                    let node = nodes[nodeIndex]
+                    let newSortOrder = (index + 1) * 100 // Use increments of 100
+
+                    // Create updated node with new sort order
+                    let updatedNode = Node(
+                        id: node.id,
+                        title: node.title,
+                        nodeType: node.nodeType,
+                        parentId: node.parentId,
+                        ownerId: node.ownerId,
+                        createdAt: node.createdAt,
+                        updatedAt: ISO8601DateFormatter().string(from: Date()),
+                        sortOrder: newSortOrder,
+                        isList: node.isList,
+                        childrenCount: node.childrenCount,
+                        tags: node.tags,
+                        taskData: node.taskData,
+                        noteData: node.noteData,
+                        templateData: node.templateData,
+                        smartFolderData: node.smartFolderData,
+                        folderData: node.folderData
+                    )
+
+                    nodes[nodeIndex] = updatedNode
+                }
+            }
+
+            // Note: We don't sort the entire nodes array here because:
+            // 1. sortOrder is only meaningful within sibling groups (same parent)
+            // 2. The TreeViewModel rebuilds the hierarchy correctly using nodeChildren
+            // 3. Global sorting would incorrectly intermix nodes from different parents
+
+            // Queue the reorder operation for sync
+            await offlineQueue.queueReorder(nodeIds: nodeIds)
+
+            // Save to cache
+            await cacheManager.saveNodes(nodes)
+
+            errorMessage = "Reordered offline - will sync when connected"
+            return true
         }
     }
 }
