@@ -13,6 +13,11 @@ public enum DropPosition {
     case below
 }
 
+public enum ChevronPosition {
+    case leading
+    case trailing
+}
+
 public struct TreeNodeView: View {
     let node: Node
     let children: [Node]
@@ -27,6 +32,7 @@ public struct TreeNodeView: View {
     let isRootInFocusMode: Bool
     let fontSize: CGFloat
     let lineSpacing: CGFloat
+    let chevronPosition: ChevronPosition
     let onDelete: (Node) -> Void
     let onToggleTaskStatus: (Node) -> Void
     let onRefresh: () async -> Void
@@ -232,6 +238,7 @@ public struct TreeNodeView: View {
                         isRootInFocusMode: false,
                         fontSize: fontSize,
                         lineSpacing: lineSpacing,
+                        chevronPosition: chevronPosition,
                         onDelete: onDelete,
                         onToggleTaskStatus: onToggleTaskStatus,
                         onRefresh: onRefresh,
@@ -272,41 +279,11 @@ public struct TreeNodeView: View {
                         .frame(width: 20)
                 }
             }
-            
-            // Expand/collapse chevron
-            Button(action: {
-                // logger.log("🔽 Chevron clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if isExpanded {
-                        // logger.log("📦 Collapsing node: \(node.title)", category: "TreeNodeView")
-                        if let onCollapseNode = onCollapseNode {
-                            onCollapseNode(node.id)
-                        } else {
-                            expandedNodes.remove(node.id)
-                        }
-                    } else {
-                        // logger.log("📤 Expanding node: \(node.title)", category: "TreeNodeView")
-                        expandedNodes.insert(node.id)
-                        // SMART FOLDER RULE 3: Execute rule when expanding via chevron
-                        if node.nodeType == "smart_folder" {
-                            // logger.log("🧩 Smart folder detected on expand, executing rule", category: "TreeNodeView")
-                            Task {
-                                await executeSmartFolderRule()
-                            }
-                        }
-                    }
-                }
-            }) {
-                Image(systemName: hasChildren ? (isExpanded ? "chevron.down" : "chevron.right") : "circle")
-                    .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
-                    .foregroundColor(hasChildren ? .primary : .clear)
-                    .frame(width: fontSize + 8, height: fontSize + 8)  // Button area scales with font size
-                    .contentShape(Rectangle())
+
+            // Expand/collapse chevron (leading position)
+            if chevronPosition == .leading {
+                chevronButton
             }
-            .buttonStyle(PlainButtonStyle())
-            .frame(width: fontSize + 8, height: fontSize + 8)  // Match the button frame to the image frame
-            .contentShape(Rectangle())
-            .disabled(!hasChildren)
             
             // Node icon - clickable behavior depends on node type
             Button(action: {
@@ -467,10 +444,52 @@ public struct TreeNodeView: View {
                     .background(Color.secondary.opacity(0.1))
                     .clipShape(Capsule())
             }
+
+            // Expand/collapse chevron (trailing position)
+            if chevronPosition == .trailing {
+                chevronButton
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, lineSpacing)
         .background(selectedNodeId == node.id ? Color.gray.opacity(0.1) : Color.clear)
+    }
+
+    @ViewBuilder
+    private var chevronButton: some View {
+        Button(action: {
+            // logger.log("🔽 Chevron clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if isExpanded {
+                    // logger.log("📦 Collapsing node: \(node.title)", category: "TreeNodeView")
+                    if let onCollapseNode = onCollapseNode {
+                        onCollapseNode(node.id)
+                    } else {
+                        expandedNodes.remove(node.id)
+                    }
+                } else {
+                    // logger.log("📤 Expanding node: \(node.title)", category: "TreeNodeView")
+                    expandedNodes.insert(node.id)
+                    // SMART FOLDER RULE 3: Execute rule when expanding via chevron
+                    if node.nodeType == "smart_folder" {
+                        // logger.log("🧩 Smart folder detected on expand, executing rule", category: "TreeNodeView")
+                        Task {
+                            await executeSmartFolderRule()
+                        }
+                    }
+                }
+            }
+        }) {
+            Image(systemName: hasChildren ? (isExpanded ? "chevron.down" : "chevron.right") : "circle")
+                .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
+                .foregroundColor(hasChildren ? .primary : .clear)
+                .frame(width: fontSize + 8, height: fontSize + 8)  // Button area scales with font size
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(width: fontSize + 8, height: fontSize + 8)  // Match the button frame to the image frame
+        .contentShape(Rectangle())
+        .disabled(!hasChildren)
     }
     
     private func isNodeWithinBranch(_ nodeId: String, branchRoot: String) -> Bool {
