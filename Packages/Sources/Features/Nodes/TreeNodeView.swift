@@ -32,7 +32,7 @@ public struct TreeNodeView: View {
     let isRootInFocusMode: Bool
     let fontSize: CGFloat
     let lineSpacing: CGFloat
-    let chevronPosition: ChevronPosition
+    let chevronPosition: ChevronPosition  // Default provided in init
     let onDelete: (Node) -> Void
     let onToggleTaskStatus: (Node) -> Void
     let onRefresh: () async -> Void
@@ -52,7 +52,72 @@ public struct TreeNodeView: View {
     @State private var editingText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var dropTargetPosition: DropPosition = .none
-    
+
+    // Public initializer with platform-aware default for chevronPosition
+    public init(
+        node: Node,
+        children: [Node],
+        expandedNodes: Binding<Set<String>>,
+        selectedNodeId: Binding<String?>,
+        focusedNodeId: Binding<String?>,
+        nodeChildren: Binding<[String: [Node]]>,
+        isEditing: Binding<Bool>,
+        showingNoteEditorForNode: Binding<Node?>,
+        getChildren: @escaping (String) -> [Node],
+        level: Int,
+        isRootInFocusMode: Bool,
+        fontSize: CGFloat,
+        lineSpacing: CGFloat,
+        chevronPosition: ChevronPosition = {
+            #if os(iOS)
+            return .trailing
+            #else
+            return .leading
+            #endif
+        }(),
+        onDelete: @escaping (Node) -> Void,
+        onToggleTaskStatus: @escaping (Node) -> Void,
+        onRefresh: @escaping () async -> Void,
+        onUpdateNodeTitle: @escaping (String, String) async -> Void,
+        onUpdateSingleNode: @escaping (String) async -> Void,
+        onNodeDrop: ((Node, Node, DropPosition, String) async -> Void)? = nil,
+        onExecuteSmartFolder: ((Node) async -> Void)? = nil,
+        onInstantiateTemplate: ((Node) async -> Void)? = nil,
+        onCollapseNode: ((String) -> Void)? = nil,
+        onFocusNode: ((Node) -> Void)? = nil,
+        onOpenNoteEditor: ((Node) -> Void)? = nil,
+        onShowTagPicker: ((Node) -> Void)? = nil,
+        onShowDetails: ((Node) -> Void)? = nil
+    ) {
+        self.node = node
+        self.children = children
+        self._expandedNodes = expandedNodes
+        self._selectedNodeId = selectedNodeId
+        self._focusedNodeId = focusedNodeId
+        self._nodeChildren = nodeChildren
+        self._isEditing = isEditing
+        self._showingNoteEditorForNode = showingNoteEditorForNode
+        self.getChildren = getChildren
+        self.level = level
+        self.isRootInFocusMode = isRootInFocusMode
+        self.fontSize = fontSize
+        self.lineSpacing = lineSpacing
+        self.chevronPosition = chevronPosition
+        self.onDelete = onDelete
+        self.onToggleTaskStatus = onToggleTaskStatus
+        self.onRefresh = onRefresh
+        self.onUpdateNodeTitle = onUpdateNodeTitle
+        self.onUpdateSingleNode = onUpdateSingleNode
+        self.onNodeDrop = onNodeDrop
+        self.onExecuteSmartFolder = onExecuteSmartFolder
+        self.onInstantiateTemplate = onInstantiateTemplate
+        self.onCollapseNode = onCollapseNode
+        self.onFocusNode = onFocusNode
+        self.onOpenNoteEditor = onOpenNoteEditor
+        self.onShowTagPicker = onShowTagPicker
+        self.onShowDetails = onShowDetails
+    }
+
     private var isExpanded: Bool {
         expandedNodes.contains(node.id)
     }
@@ -484,12 +549,14 @@ public struct TreeNodeView: View {
                 .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
                 .foregroundColor(hasChildren ? .primary : .clear)
                 .frame(width: fontSize + 8, height: fontSize + 8)  // Button area scales with font size
-                .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
         .frame(width: fontSize + 8, height: fontSize + 8)  // Match the button frame to the image frame
         .contentShape(Rectangle())
         .disabled(!hasChildren)
+        .accessibilityLabel(hasChildren ? (isExpanded ? "Collapse" : "Expand") : "")
+        .accessibilityHint(hasChildren ? "Double tap to \(isExpanded ? "collapse" : "expand") \(node.title)" : "")
+        .accessibilityIdentifier("chevron_\(node.id)")
     }
     
     private func isNodeWithinBranch(_ nodeId: String, branchRoot: String) -> Bool {
