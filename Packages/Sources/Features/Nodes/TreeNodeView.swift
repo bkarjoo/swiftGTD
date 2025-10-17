@@ -308,8 +308,7 @@ public struct TreeNodeView: View {
             .contentShape(Rectangle())
             .disabled(!hasChildren)
             
-            // Node icon - clickable to toggle expand/collapse (same as chevron)
-            // For tasks, also toggles completion status
+            // Node icon - clickable behavior depends on node type
             Button(action: {
                 if node.nodeType == "task" {
                     // For tasks, toggle completion status
@@ -317,8 +316,11 @@ public struct TreeNodeView: View {
                     logger.log("Current completion status: \(node.taskData?.completedAt != nil)", category: "TreeNodeView")
                     onToggleTaskStatus(node)
                     logger.log("✅ onToggleTaskStatus called", category: "TreeNodeView")
+                } else if node.nodeType == "folder" {
+                    // For folders, use unified click behavior
+                    handleFolderClick()
                 } else if hasChildren {
-                    // For non-task nodes with children, toggle expand/collapse (same as chevron)
+                    // For other non-task nodes with children, toggle expand/collapse
                     // logger.log("🔽 Icon clicked for node: \(node.title) (type: \(node.nodeType))", category: "TreeNodeView")
                     withAnimation(.easeInOut(duration: 0.2)) {
                         if isExpanded {
@@ -400,8 +402,11 @@ public struct TreeNodeView: View {
                             } else {
                                 showingNoteEditorForNode = node
                             }
+                        } else if node.nodeType == "folder" {
+                            // For folders, use unified click behavior
+                            handleFolderClick()
                         } else {
-                            // Focus on this node (make it the new root)
+                            // For other nodes, focus on this node (make it the new root)
                             // logger.log("🎯 Title clicked - focusing on node: \(node.id)", category: "TreeNodeView")
                             // Always route through the view model's focusOnNode method
                             if let onFocusNode = onFocusNode {
@@ -489,6 +494,24 @@ public struct TreeNodeView: View {
         }
 
         return isDescendant(of: branchRoot, nodeToFind: nodeId)
+    }
+
+    // MARK: - Node Click Handlers
+
+    /// Handles click behavior for folder nodes: expand → focus → do nothing
+    private func handleFolderClick() {
+        if !isExpanded {
+            // Step 1: If collapsed, expand it
+            withAnimation(.easeInOut(duration: 0.2)) {
+                expandedNodes.insert(node.id)
+            }
+        } else if focusedNodeId != node.id {
+            // Step 2: If expanded but not focused, focus on it
+            if let onFocusNode = onFocusNode {
+                onFocusNode(node)
+            }
+        }
+        // Step 3: If already focused, do nothing
     }
 
     // MARK: - Smart Folder Execution
