@@ -298,11 +298,14 @@ public struct TreeNodeView: View {
                 }
             }) {
                 Image(systemName: hasChildren ? (isExpanded ? "chevron.down" : "chevron.right") : "circle")
-                    .font(.system(size: 10))
-                    .frame(width: 16, height: 16)
+                    .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
                     .foregroundColor(hasChildren ? .primary : .clear)
+                    .frame(width: fontSize + 8, height: fontSize + 8)  // Button area scales with font size
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .frame(width: fontSize + 8, height: fontSize + 8)  // Match the button frame to the image frame
+            .contentShape(Rectangle())
             .disabled(!hasChildren)
             
             // Node icon - clickable to toggle expand/collapse (same as chevron)
