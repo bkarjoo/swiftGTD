@@ -118,7 +118,13 @@ struct NodeDetailsView_macOS: View {
                 if viewModel.hasChanges {
                     viewModel.cancel()
                 }
-                dismiss()
+                if !embeddedMode {
+                    dismiss()
+                } else {
+                    // In embedded mode, return focus to the tree by making the window key
+                    // This will restore focus to the tree view which is the main content
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                }
             }
             .buttonStyle(.plain)
             
