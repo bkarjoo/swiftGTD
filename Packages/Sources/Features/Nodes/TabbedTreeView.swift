@@ -336,7 +336,9 @@ public struct TabbedTreeView: View {
                viewModel.showingNoteEditorForNode != nil ||
                viewModel.showingHelpWindow ||
                viewModel.isEditing {
-                logger.log("🚫 ATTEMPT 9: Modal check blocking event (tag picker check disabled)", category: "KEYBOARD-MODAL")
+                logger.log("🚫 Modal active - returning event to modal", category: "KEYBOARD-MODAL")
+                // IMPORTANT: Return here to prevent TreeViewModel from handling the key
+                // This allows the note editor's TextEditor to handle Cmd+C for copy
                 return event
             }
 

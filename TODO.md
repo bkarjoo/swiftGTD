@@ -62,7 +62,14 @@
 ## Other Features
 
 ### Keyboard Shortcuts
-- [ ] Implement Cmd+X/C/V for cut/copy/paste nodes
+- [ ] **Cmd+Up Arrow**: Move node up in list
+  - Within same parent: swap with previous sibling
+  - First child of parent: move out to become sibling of parent (above parent)
+  - In focus mode at top: no effect
+- [ ] **Cmd+Down Arrow**: Move node down in list
+  - Within same parent: swap with next sibling
+  - Last child of parent: move out to become sibling of parent (below parent)
+  - In focus mode at bottom: no effect
 - [ ] Add Cmd+Z for undo last operation
 - [ ] Add Cmd+Shift+Z for redo
 

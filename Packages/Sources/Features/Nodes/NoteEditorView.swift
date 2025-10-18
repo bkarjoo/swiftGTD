@@ -187,20 +187,20 @@ public struct NoteEditorView: View {
         .background(
             // Hidden buttons for keyboard shortcuts
             Group {
-                Button("") {
-                    if editMode == .inactive {
+                // Cmd+E: Enter edit mode (only active in view mode)
+                if editMode == .inactive {
+                    Button("") {
                         editMode = .active
                         // Focus TextEditor after a short delay
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             isTextEditorFocused = true
                         }
                     }
-                }
-                .keyboardShortcut("e", modifiers: .command)
-                .hidden()
+                    .keyboardShortcut("e", modifiers: .command)
+                    .hidden()
 
-                Button("") {
-                    if editMode == .inactive {
+                    // Cmd+C: Copy entire note content (only active in view mode)
+                    Button("") {
                         logger.log("📋 Copying note content to clipboard", category: "NoteEditor")
                         #if os(macOS)
                         NSPasteboard.general.clearContents()
@@ -210,21 +210,22 @@ public struct NoteEditorView: View {
                         #endif
                         logger.log("✅ Note content copied to clipboard", category: "NoteEditor")
                     }
+                    .keyboardShortcut("c", modifiers: .command)
+                    .hidden()
                 }
-                .keyboardShortcut("c", modifiers: .command)
-                .hidden()
 
-                Button("") {
-                    if editMode == .active {
+                // Cmd+R: Discard changes (only active in edit mode)
+                if editMode == .active {
+                    Button("") {
                         // Discard changes and return to view mode
                         noteContent = originalContent
                         hasUnsavedChanges = false
                         editMode = .inactive
                         isTextEditorFocused = false
                     }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .hidden()
                 }
-                .keyboardShortcut("r", modifiers: .command)
-                .hidden()
             }
         )
     }
