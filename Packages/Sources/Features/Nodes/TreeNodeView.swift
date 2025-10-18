@@ -11,6 +11,7 @@ public enum DropPosition {
     case none
     case above
     case below
+    case inside  // Drop as child of target node
 }
 
 public enum ChevronPosition {
@@ -53,6 +54,7 @@ public struct TreeNodeView: View {
     @State private var editingText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var dropTargetPosition: DropPosition = .none
+    @State private var rowHeight: CGFloat = 0
 
     // Public initializer with platform-aware default for chevronPosition
     public init(
@@ -167,6 +169,16 @@ public struct TreeNodeView: View {
     private var isCompleted: Bool {
         node.taskData?.status == "done" || node.taskData?.status == "completed"
     }
+
+    private var backgroundColorForState: Color {
+        if dropTargetPosition == .inside {
+            return Color.blue.opacity(0.15)  // Highlight for "drop inside"
+        } else if selectedNodeId == node.id {
+            return Color.gray.opacity(0.1)
+        } else {
+            return Color.clear
+        }
+    }
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -198,8 +210,20 @@ public struct TreeNodeView: View {
                     targetNode: node,
                     parentId: node.parentId,
                     dropPosition: $dropTargetPosition,
-                    onDrop: handleDrop
+                    onDrop: handleDrop,
+                    fontSize: fontSize,
+                    lineSpacing: lineSpacing,
+                    rowHeight: rowHeight
                 ))
+                // Measure the actual rendered height of the row for accurate drop zones
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: RowHeightPreferenceKey.self, value: proxy.size.height)
+                    }
+                )
+                .onPreferenceChange(RowHeightPreferenceKey.self) { value in
+                    rowHeight = value
+                }
                 #if os(macOS)
                 .contextMenu {
                     Button(action: {
@@ -522,7 +546,20 @@ public struct TreeNodeView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, lineSpacing)
-        .background(selectedNodeId == node.id ? Color.gray.opacity(0.1) : Color.clear)
+        .background(backgroundColorForState)
+        .overlay(
+            // Add border for "drop inside" state
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(dropTargetPosition == .inside ? Color.blue : Color.clear, lineWidth: 2)
+        )
+    }
+
+    // PreferenceKey to capture row height
+    private struct RowHeightPreferenceKey: PreferenceKey {
+        static var defaultValue: CGFloat { 0 }
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
     }
 
     @ViewBuilder
@@ -702,16 +739,36 @@ public struct TreeNodeView: View {
     }
     
     private func handleDrop(draggedNode: Node, targetNode: Node, position: DropPosition) -> Bool {
-        // Only allow drop if they have the same parent (are siblings)
-        guard draggedNode.parentId == targetNode.parentId else {
-            logger.log("❌ Cannot drop - not siblings", category: "TreeNodeView")
-            return false
-        }
-
         // Don't allow dropping on self
         guard draggedNode.id != targetNode.id else {
             logger.log("❌ Cannot drop on self", category: "TreeNodeView")
             return false
+        }
+
+        // Check if this is a parent change operation
+        if position == .inside {
+            // For now, just show an alert about the intended parent change
+            let message = "Would move '\(draggedNode.title)' inside '\(targetNode.title)' (make it a child)"
+            logger.log("📦 Parent change detected: \(message)", category: "TreeNodeView")
+
+            // Call the callback with the message
+            Task {
+                await onNodeDrop?(draggedNode, targetNode, position, message)
+            }
+            return true
+        }
+
+        // Regular sibling reordering - only allow if they have the same parent
+        guard draggedNode.parentId == targetNode.parentId else {
+            // This could be a parent change where we're dropping between nodes
+            let message = "Would move '\(draggedNode.title)' to be sibling of '\(targetNode.title)'"
+            logger.log("📦 Parent change detected (sibling): \(message)", category: "TreeNodeView")
+
+            // Call the callback with the message
+            Task {
+                await onNodeDrop?(draggedNode, targetNode, position, message)
+            }
+            return true
         }
 
         logger.log("🎯 Reordering \(draggedNode.title) to \(position == .above ? "before" : "after") \(targetNode.title)", category: "TreeNodeView")
@@ -789,6 +846,9 @@ struct NodeDropDelegate: DropDelegate {
     let parentId: String?
     let dropPosition: Binding<DropPosition>
     let onDrop: (Node, Node, DropPosition) -> Bool
+    let fontSize: CGFloat
+    let lineSpacing: CGFloat
+    let rowHeight: CGFloat
 
     func performDrop(info: DropInfo) -> Bool {
         guard let itemProvider = info.itemProviders(for: [UTType.data]).first else {
@@ -836,9 +896,32 @@ struct NodeDropDelegate: DropDelegate {
     }
 
     private func getDropPosition(info: DropInfo) -> DropPosition {
-        let location = info.location.y
-        // If drop is in upper half, show indicator above
-        // If in lower half, show below
-        return location < 20 ? .above : .below
+        // y in the coordinate space of the drop target
+        var y = info.location.y
+
+        // Prefer measured height; fall back to an estimate
+        let measuredHeight = rowHeight
+        let estimatedHeight = fontSize + (2 * lineSpacing)
+        let nodeHeight = max(measuredHeight, estimatedHeight)
+
+        // Clamp y into [0, nodeHeight] to avoid overshoot
+        y = min(max(0, y), nodeHeight)
+
+        // Edge zones: true 10/80/10 but never thinner than 8pt
+        let edgeZone = max(8, nodeHeight * 0.10)
+        let topThreshold = edgeZone
+        let bottomThreshold = nodeHeight - edgeZone
+
+        let position: DropPosition
+        if y <= topThreshold {
+            position = .above
+        } else if y >= bottomThreshold {
+            position = .below
+        } else {
+            position = .inside
+        }
+
+        logger.log("📍 y=\(y), height=\(nodeHeight), edge=\(edgeZone), top=\(topThreshold), bottom=\(bottomThreshold), pos=\(position)", category: "TreeNodeView")
+        return position
     }
 }
