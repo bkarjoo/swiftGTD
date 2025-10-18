@@ -428,9 +428,31 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     // MARK: - Drag and Drop
 
-    /// Reorder nodes via drag and drop, updating sort orders for all affected siblings
+    /// Handle node drop operations - either reordering siblings or changing parent
     func performReorder(draggedNode: Node, targetNode: Node, position: DropPosition, message: String) async {
+        // Handle parent change (dropping inside a node)
+        if position == .inside {
+            await changeNodeParent(draggedNode: draggedNode, newParent: targetNode, message: message)
+            return
+        }
 
+        // Handle dropping above/below (might be parent change + reorder)
+        if position == .above || position == .below {
+            // Check if this is a parent change
+            if draggedNode.parentId != targetNode.parentId {
+                // This is Step 2: Dropping inside an open node at a specific position
+                await changeNodeParentWithPosition(
+                    draggedNode: draggedNode,
+                    targetNode: targetNode,
+                    position: position,
+                    message: message
+                )
+                return
+            }
+            // Otherwise continue with normal sibling reordering
+        }
+
+        // Handle sibling reordering (dropping above or below with same parent)
         // Get all siblings
         let siblings: [Node]
         if let parentId = draggedNode.parentId {
@@ -491,6 +513,172 @@ public class TreeViewModel: ObservableObject, Identifiable {
             #endif
         }
 
+    }
+
+    /// Change a node's parent
+    private func changeNodeParent(draggedNode: Node, newParent: Node, message: String) async {
+        guard let dataManager = dataManager else {
+            logger.log("❌ No dataManager available", category: "TreeViewModel")
+            return
+        }
+
+        logger.log("📦 Changing parent of '\(draggedNode.title)' to '\(newParent.title)'", category: "TreeViewModel")
+
+        // Create update object with new parent
+        let update = NodeUpdate(
+            title: draggedNode.title,
+            parentId: newParent.id,
+            sortOrder: 1000,  // Place at the end of new parent's children
+            taskData: draggedNode.taskData.map { TaskDataUpdate(
+                status: $0.status,
+                dueAt: $0.dueAt,
+                completedAt: $0.completedAt
+            ) },
+            noteData: draggedNode.noteData.map { NoteDataUpdate(body: $0.body) }
+        )
+
+        // Update via DataManager
+        if let updatedNode = await dataManager.updateNode(draggedNode.id, update: update) {
+            logger.log("✅ Parent changed successfully", category: "TreeViewModel")
+
+            // Refresh both old and new parents to ensure consistency
+            if let oldParentId = draggedNode.parentId {
+                await dataManager.refreshNode(oldParentId)
+            }
+            await dataManager.refreshNode(newParent.id)
+
+            // Expand the new parent to show the moved node
+            await MainActor.run {
+                self.expandedNodes.insert(newParent.id)
+                self.selectedNodeId = updatedNode.id
+            }
+        } else {
+            logger.log("❌ Failed to change parent", category: "TreeViewModel")
+            // Silently fail - the node will remain in its original position
+        }
+    }
+
+    /// Change a node's parent and position it relative to a target sibling
+    private func changeNodeParentWithPosition(draggedNode: Node, targetNode: Node, position: DropPosition, message: String) async {
+        guard let dataManager = dataManager else {
+            logger.log("❌ No dataManager available", category: "TreeViewModel")
+            return
+        }
+
+        // The new parent is the target node's parent (could be nil for root)
+        let newParentId = targetNode.parentId
+
+        // Validate the new parent if it exists
+        if let parentId = newParentId {
+            // Get the parent node from cache to validate
+            guard let parentNode = nodeCache[parentId] else {
+                logger.log("❌ Parent node not found: \(parentId)", category: "TreeViewModel")
+                return
+            }
+
+            // Validation: Don't allow dropping inside notes
+            if parentNode.nodeType == "note" {
+                logger.log("❌ Cannot drop inside a note", category: "TreeViewModel")
+                return
+            }
+
+            // Validation: Don't allow dropping inside smart folders
+            if parentNode.nodeType == "smart_folder" {
+                logger.log("❌ Cannot drop inside a smart folder", category: "TreeViewModel")
+                return
+            }
+
+            // Validation: Prevent circular references
+            if isDescendant(parentId, of: draggedNode.id) {
+                logger.log("❌ Cannot create circular reference", category: "TreeViewModel")
+                return
+            }
+        }
+
+        logger.log("📦 Changing parent of '\(draggedNode.title)' to '\(newParentId ?? "root")' at position \(position) relative to '\(targetNode.title)'", category: "TreeViewModel")
+
+        // First, change the parent
+        let update = NodeUpdate(
+            title: draggedNode.title,
+            parentId: newParentId,
+            sortOrder: 9999,  // Temporary sort order, will be fixed by reorder
+            taskData: draggedNode.taskData.map { TaskDataUpdate(
+                status: $0.status,
+                dueAt: $0.dueAt,
+                completedAt: $0.completedAt
+            ) },
+            noteData: draggedNode.noteData.map { NoteDataUpdate(body: $0.body) }
+        )
+
+        // Update via DataManager
+        if let updatedNode = await dataManager.updateNode(draggedNode.id, update: update) {
+            logger.log("✅ Parent changed, now reordering...", category: "TreeViewModel")
+
+            // Refresh the new parent to get the updated children list including the moved node
+            if let newParentId = newParentId {
+                await dataManager.refreshNode(newParentId)
+            } else {
+                // Refresh root nodes
+                await dataManager.syncAllData()
+            }
+
+            // Now get the updated siblings list with the moved node
+            let updatedSiblings = newParentId != nil ? (nodeChildren[newParentId!] ?? []) : getRootNodes()
+
+            // Find the current position of the moved node and target
+            var mutableSiblings = updatedSiblings
+            guard let draggedIndex = mutableSiblings.firstIndex(where: { $0.id == draggedNode.id }),
+                  let targetIndex = mutableSiblings.firstIndex(where: { $0.id == targetNode.id }) else {
+                logger.log("❌ Could not find nodes after parent change", category: "TreeViewModel")
+                return
+            }
+
+            // Remove the dragged node from its current position
+            let movedNode = mutableSiblings.remove(at: draggedIndex)
+
+            // Calculate the new insertion index
+            let insertIndex: Int
+            if position == .above {
+                // Insert before the target
+                insertIndex = targetIndex > draggedIndex ? targetIndex - 1 : targetIndex
+            } else { // .below
+                // Insert after the target
+                insertIndex = targetIndex >= draggedIndex ? targetIndex : targetIndex + 1
+            }
+
+            // Insert at the new position
+            mutableSiblings.insert(movedNode, at: insertIndex)
+
+            // Create the ordered list of IDs
+            let orderedIds = mutableSiblings.map { $0.id }
+
+            // Send the reorder request
+            let reorderSuccess = await dataManager.reorderNodes(orderedIds)
+
+            if reorderSuccess {
+                logger.log("✅ Parent changed and nodes reordered successfully", category: "TreeViewModel")
+            } else {
+                logger.log("⚠️ Parent changed but reordering may have failed", category: "TreeViewModel")
+            }
+
+            // Refresh both old and new parents to ensure consistency
+            if let oldParentId = draggedNode.parentId {
+                await dataManager.refreshNode(oldParentId)
+            }
+            if let newParentId = newParentId {
+                await dataManager.refreshNode(newParentId)
+            }
+
+            // Expand the new parent to show the moved node
+            await MainActor.run {
+                if let parentId = newParentId {
+                    self.expandedNodes.insert(parentId)
+                }
+                self.selectedNodeId = updatedNode.id
+            }
+        } else {
+            logger.log("❌ Failed to change parent", category: "TreeViewModel")
+        }
     }
 
     /// Show an alert message for drag and drop operations

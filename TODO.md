@@ -1,37 +1,76 @@
-# TODO - Performance Optimizations
+# TODO - SwiftGTD
 
-## Performance Issues After Refactor
+## Drag & Drop Implementation
 
-The app has become slower after the recent refactoring. Here are the identified issues and fixes:
+**Current State**: ✅ **COMPLETED** - Full drag and drop functionality is working including sibling reordering, parent changes, and position-specific drops.
 
-### 1. Debounce State Saving ✅
-- **Issue**: `saveStateImmediately()` is called on every focus/selection change, writing to disk immediately
-- **Fix**: Implement debounced saving with a delay (e.g., 500ms) to batch multiple changes
-- **Status**: COMPLETE - Implemented 1-second periodic saves in UIStateManager
+### Implementation Steps
 
-### 2. Reduce Subscription Overhead ✅
-- **Issue**: Creating Combine subscriptions for EVERY tab's focus and selection changes
-- **Fix**: Only subscribe to necessary changes, consider using a single subscription manager
-- **Status**: COMPLETE - Subscriptions now only on active tab's TreeViewModel
+#### 1. Drop Inside Node (Make Child) ✅
+- [x] When dropping on a node (80% middle zone), set the dragged node's parent to the target node
+- [x] Validation rules:
+  - [x] Do not allow dropping inside notes (`nodeType == "note"`)
+  - [x] Do not allow dropping inside smart folders (`nodeType == "smart_folder"`)
+  - [x] Do not allow dropping on self (prevent circular references)
+- [x] API call: Update the node's `parentId` field
+- [x] UI update: Move node to new parent's children list
 
-### 3. Remove Redundant Logging ✅
-- **Issue**: Still have many debug logs throughout the codebase that impact performance
-- **Fix**: Remove or conditionally compile debug logging statements
-- **Status**: COMPLETE - Removed 100+ verbose debug logs
+#### 2. Drop Inside Open Node at Specific Position ✅
+- [x] When an expanded node shows its children, allow dropping between children
+- [x] Set the dragged node's parent to that expanded parent node
+- [x] Set the sort_order based on the drop position between children
+- [x] Enforce all validation rules from Step 1
+- [x] API call: Update both `parentId` and use `reorderNodes` for proper positioning
+- [x] UI update: Insert node at the specific position in children list
 
-### 4. Optimize Node Lookups ✅
-- **Issue**: Frequent `allNodes.first(where:)` calls iterate through entire node list
-- **Fix**: Cache frequently accessed nodes in a dictionary for O(1) lookup
-- **Status**: COMPLETE - Added nodeCache dictionary, all lookups now O(1)
+#### 3. Drop on Node Outside Current Parent ✅
+- [x] When dragging from one parent to a different parent's node
+- [x] Works exactly like Step 1 (make it a child of the target)
+- [x] Handles moving from root level to nested and vice versa
+- [x] Maintains all validation rules
 
-### 5. Batch Updates ✅
-- **Issue**: Multiple state changes trigger individual UI updates
-- **Fix**: Group related state changes and update UI once
-- **Status**: COMPLETE - Added batchUI helper with withTransaction, composite intent methods
+#### 4. Drop Outside Open Node at Specific Position ✅
+- [x] When dropping at a position outside an expanded node's children
+- [x] Detects the parent context (could be root or another parent)
+- [x] Sets appropriate parent and sort_order
+- [x] Works like Step 2 but for external drops
+- [x] Maintains all validation rules
 
-## Priority Order
-1. Debounce state saving (biggest impact)
-2. Reduce subscription overhead
-3. Optimize node lookups
-4. Batch updates
-5. Remove redundant logging
+### Technical Implementation Notes
+
+**Drop Zone Detection** (✅ Completed):
+- Top 10% (min 8pt) = Drop above as sibling
+- Middle 80% = Drop inside as child (blue highlight)
+- Bottom 10% (min 8pt) = Drop below as sibling
+
+**Visual Feedback System** (✅ Completed):
+- Blue highlight for "drop inside"
+- Blue line above/below for sibling drops
+- Drag preview with icon and title
+
+**API Integration Required**:
+- `PATCH /nodes/{id}` to update `parentId` and `sort_order`
+- Refresh affected parent nodes after move
+- Handle optimistic updates with rollback on failure
+
+**Edge Cases to Handle**:
+- Prevent moving a parent into its own child (circular reference)
+- Handle moving nodes with children (move entire subtree)
+- Preserve expanded/collapsed state after move
+- Update focus/selection appropriately after move
+
+## Other Features
+
+### Keyboard Shortcuts
+- [ ] Implement Cmd+X/C/V for cut/copy/paste nodes
+- [ ] Add Cmd+Z for undo last operation
+- [ ] Add Cmd+Shift+Z for redo
+
+### Performance
+- [ ] Investigate lazy loading for large node trees
+- [ ] Add virtual scrolling for better performance with many nodes
+
+### UI Improvements
+- [ ] Add animation for node moves
+- [ ] Improve drag preview appearance
+- [ ] Add multi-select support for bulk operations

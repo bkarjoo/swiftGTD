@@ -555,7 +555,7 @@ public struct TreeNodeView: View {
     }
 
     // PreferenceKey to capture row height
-    private struct RowHeightPreferenceKey: PreferenceKey {
+    struct RowHeightPreferenceKey: PreferenceKey {
         static var defaultValue: CGFloat { 0 }
         static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
             value = max(value, nextValue())
@@ -747,28 +747,66 @@ public struct TreeNodeView: View {
 
         // Check if this is a parent change operation
         if position == .inside {
-            // For now, just show an alert about the intended parent change
-            let message = "Would move '\(draggedNode.title)' inside '\(targetNode.title)' (make it a child)"
-            logger.log("📦 Parent change detected: \(message)", category: "TreeNodeView")
+            // Validation: Don't allow dropping inside notes
+            if targetNode.nodeType == "note" {
+                logger.log("❌ Cannot drop inside a note", category: "TreeNodeView")
+                return false
+            }
 
-            // Call the callback with the message
+            // Validation: Don't allow dropping inside smart folders
+            if targetNode.nodeType == "smart_folder" {
+                logger.log("❌ Cannot drop inside a smart folder", category: "TreeNodeView")
+                return false
+            }
+
+            // Validation: Prevent circular references (don't drop a parent into its own child)
+            if isNodeWithinBranch(targetNode.id, branchRoot: draggedNode.id) {
+                logger.log("❌ Cannot drop a parent into its own child (circular reference)", category: "TreeNodeView")
+                return false
+            }
+
+            // Valid parent change operation
+            let message = "Moving '\(draggedNode.title)' inside '\(targetNode.title)'"
+            logger.log("📦 Parent change: \(message)", category: "TreeNodeView")
+
+            // Call the callback to perform the actual parent change
             Task {
                 await onNodeDrop?(draggedNode, targetNode, position, message)
             }
             return true
         }
 
-        // Regular sibling reordering - only allow if they have the same parent
-        guard draggedNode.parentId == targetNode.parentId else {
-            // This could be a parent change where we're dropping between nodes
-            let message = "Would move '\(draggedNode.title)' to be sibling of '\(targetNode.title)'"
-            logger.log("📦 Parent change detected (sibling): \(message)", category: "TreeNodeView")
+        // Check if we're dropping above/below a node (potentially changing parent)
+        if position == .above || position == .below {
+            // If dragged node has a different parent than target, this is a parent change
+            if draggedNode.parentId != targetNode.parentId {
+                // Parent change: moving to be a sibling of the target node
+                // The new parent will be the target node's parent
 
-            // Call the callback with the message
-            Task {
-                await onNodeDrop?(draggedNode, targetNode, position, message)
+                // First validate the new parent
+                if let newParentId = targetNode.parentId {
+                    // Check if the new parent is valid
+                    // We need to get the parent node to validate
+                    // For now, we'll pass this to the callback to handle
+                    let message = "Moving '\(draggedNode.title)' to be sibling of '\(targetNode.title)'"
+                    logger.log("📦 Parent change via sibling drop: \(message)", category: "TreeNodeView")
+
+                    Task {
+                        await onNodeDrop?(draggedNode, targetNode, position, message)
+                    }
+                    return true
+                } else {
+                    // Moving to root level
+                    let message = "Moving '\(draggedNode.title)' to root level"
+                    logger.log("📦 Moving to root: \(message)", category: "TreeNodeView")
+
+                    Task {
+                        await onNodeDrop?(draggedNode, targetNode, position, message)
+                    }
+                    return true
+                }
             }
-            return true
+            // Same parent - this is regular sibling reordering
         }
 
         logger.log("🎯 Reordering \(draggedNode.title) to \(position == .above ? "before" : "after") \(targetNode.title)", category: "TreeNodeView")
