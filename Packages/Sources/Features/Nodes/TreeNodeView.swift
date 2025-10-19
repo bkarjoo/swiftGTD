@@ -194,18 +194,6 @@ public struct TreeNodeView: View {
             nodeRowContent
                 .id(node.id)  // Add ID for ScrollViewReader to find this node
                 .contentShape(Rectangle()) // Make entire row tappable
-                .draggable(node) { // Make the node draggable
-                    HStack {
-                        Image(systemName: nodeIcon)
-                            .font(.system(size: fontSize))
-                            .foregroundColor(nodeIconColor)
-                        Text(node.title)
-                            .font(.system(size: fontSize))
-                    }
-                    .padding(8)
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(8)
-                }
                 .onDrop(of: [UTType.data], delegate: NodeDropDelegate(
                     targetNode: node,
                     parentId: node.parentId,
@@ -374,11 +362,40 @@ public struct TreeNodeView: View {
                 }
             }
 
-            // Expand/collapse chevron (leading position)
+            // Expand/collapse chevron (leading position) - not draggable
             if chevronPosition == .leading {
                 chevronButton
             }
-            
+
+            // Middle content with drag-and-drop - chevron excluded from draggable area
+            draggableContent
+
+            // Expand/collapse chevron (trailing position) - not draggable
+            if chevronPosition == .trailing {
+                chevronButton
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, lineSpacing)
+        .background(backgroundColorForState)
+        .overlay(
+            // Add border for "drop inside" state
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(dropTargetPosition == .inside ? Color.blue : Color.clear, lineWidth: 2)
+        )
+    }
+
+    // PreferenceKey to capture row height
+    struct RowHeightPreferenceKey: PreferenceKey {
+        static var defaultValue: CGFloat { 0 }
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
+
+    @ViewBuilder
+    private var draggableContent: some View {
+        HStack(spacing: 4) {
             // Node icon - clickable behavior depends on node type
             Button(action: {
                 if node.nodeType == "task" {
@@ -422,7 +439,7 @@ public struct TreeNodeView: View {
             }
             .buttonStyle(PlainButtonStyle())
             .disabled(node.nodeType != "task" && !hasChildren)
-            
+
             // Node title - clickable to focus (or open note editor for notes)
             if isEditing && selectedNodeId == node.id {
                 TextField("", text: $editingText, onCommit: {
@@ -497,7 +514,7 @@ public struct TreeNodeView: View {
                         }
                     }
             }
-            
+
             // Due date for tasks
             if let dueAt = node.taskData?.dueAt {
                 Text(formatDueDate(dueAt))
@@ -505,7 +522,7 @@ public struct TreeNodeView: View {
                     .foregroundColor(dueDateColor(dueAt))
                     .padding(.horizontal, 4)
             }
-            
+
             // Tags (show first 2)
             if !node.tags.isEmpty {
                 HStack(spacing: 2) {
@@ -525,9 +542,9 @@ public struct TreeNodeView: View {
                     }
                 }
             }
-            
+
             Spacer()
-            
+
             // Children count
             if hasChildren && !isExpanded {
                 Text("\(node.childrenCount)")
@@ -538,27 +555,18 @@ public struct TreeNodeView: View {
                     .background(Color.secondary.opacity(0.1))
                     .clipShape(Capsule())
             }
-
-            // Expand/collapse chevron (trailing position)
-            if chevronPosition == .trailing {
-                chevronButton
-            }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, lineSpacing)
-        .background(backgroundColorForState)
-        .overlay(
-            // Add border for "drop inside" state
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(dropTargetPosition == .inside ? Color.blue : Color.clear, lineWidth: 2)
-        )
-    }
-
-    // PreferenceKey to capture row height
-    struct RowHeightPreferenceKey: PreferenceKey {
-        static var defaultValue: CGFloat { 0 }
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = max(value, nextValue())
+        .draggable(node) {
+            HStack {
+                Image(systemName: nodeIcon)
+                    .font(.system(size: fontSize))
+                    .foregroundColor(nodeIconColor)
+                Text(node.title)
+                    .font(.system(size: fontSize))
+            }
+            .padding(8)
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(8)
         }
     }
 
@@ -590,10 +598,13 @@ public struct TreeNodeView: View {
             Image(systemName: hasChildren ? (isExpanded ? "chevron.down" : "chevron.right") : "circle")
                 .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
                 .foregroundColor(hasChildren ? .primary : .clear)
-                .frame(width: fontSize + 8, height: fontSize + 8)  // Button area scales with font size
         }
+        #if os(macOS)
+        .buttonStyle(BorderlessButtonStyle())
+        #else
         .buttonStyle(PlainButtonStyle())
-        .frame(width: fontSize + 8, height: fontSize + 8)  // Match the button frame to the image frame
+        #endif
+        .frame(width: fontSize + 8, height: fontSize + 8)  // Button frame defines the clickable area
         .contentShape(Rectangle())
         .disabled(!hasChildren)
         .accessibilityLabel(hasChildren ? (isExpanded ? "Collapse" : "Expand") : "")
