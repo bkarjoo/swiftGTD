@@ -349,6 +349,11 @@ public struct TabbedTreeView: View {
             if modifiers.contains(.command) {
                 logger.log("🎯 Processing COMMAND key combination", category: "KEYBOARD")
                 switch keyCode {
+                // System shortcuts - pass through to macOS
+                case 12: // Cmd+Q - Quit
+                    logger.log("✅ Cmd+Q - passing through to system", category: "KEYBOARD")
+                    return event
+
                 case 17: // Cmd+Shift+T - New tab
                     if modifiers.contains(.shift) {
                         logger.log("✅ HANDLED: Cmd+Shift+T - New tab", category: "KEYBOARD")

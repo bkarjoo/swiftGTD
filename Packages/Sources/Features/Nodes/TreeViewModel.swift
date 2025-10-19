@@ -789,9 +789,8 @@ public class TreeViewModel: ObservableObject, Identifiable {
                 performAction(.useTemplate)
                 return true
 
-            case 12: // Q - Quick task
-                Task { performAction(.createQuickTask) }
-                return true
+            // Note: Cmd+Q is reserved for system Quit and should not be handled here
+            // Q without Cmd is handled below for quick task creation
 
             case 51: // Delete key with Cmd - Delete node
                 logger.log("  🔍 Case 51: Cmd+Delete - Delete node", category: "KEYBOARD-VM")
@@ -863,11 +862,14 @@ public class TreeViewModel: ObservableObject, Identifiable {
             performAction(.showHelp)
             return true
 
-        case 12: // Q - Quick add to default folder
-            Task {
-                await createQuickTaskInDefaultFolder()
+        case 12: // Q - Quick add to default folder (only without Command modifier)
+            if !modifiers.contains(.command) {
+                Task {
+                    await createQuickTaskInDefaultFolder()
+                }
+                return true
             }
-            return true
+            // Cmd+Q is reserved for system Quit
 
         case 36: // Enter - Edit or activate
             performAction(.activateNode)
