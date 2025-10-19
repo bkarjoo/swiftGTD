@@ -200,6 +200,13 @@ public struct TabbedTreeView: View {
                     NetworkStatusIndicator(lastSyncDate: dataManager.lastSyncDate)
 
                     Button(action: {
+                        currentTab.viewModel.showCompletedTasks.toggle()
+                    }) {
+                        Image(systemName: currentTab.viewModel.showCompletedTasks ? "eye" : "eye.slash")
+                    }
+                    .help(currentTab.viewModel.showCompletedTasks ? "Hide completed tasks" : "Show completed tasks")
+
+                    Button(action: {
                         Task {
                             await currentTab.viewModel.refreshNodes()
                         }

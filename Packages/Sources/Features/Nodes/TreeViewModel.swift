@@ -43,6 +43,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
     @Published var showingDetailsForNode: Node? = nil
     @Published var showingTagPickerForNode: Node? = nil
     @Published var showingHelpWindow = false
+    @Published var showCompletedTasks = true
 
     // Drag and drop
     @Published var showingDropAlert = false
@@ -73,13 +74,25 @@ public class TreeViewModel: ObservableObject, Identifiable {
     func getRootNodes() -> [Node] {
         let roots = allNodes.filter { $0.parentId == nil || $0.parentId == "" }
             .sorted { $0.sortOrder < $1.sortOrder }
-        return roots
+
+        // Filter out completed tasks if showCompletedTasks is false
+        if showCompletedTasks {
+            return roots
+        } else {
+            return roots.filter { !$0.isCompleted }
+        }
     }
 
     /// Get children of a specific node from the nodeChildren cache
     func getChildren(of nodeId: String) -> [Node] {
         let children = nodeChildren[nodeId] ?? []
-        return children
+
+        // Filter out completed tasks if showCompletedTasks is false
+        if showCompletedTasks {
+            return children
+        } else {
+            return children.filter { !$0.isCompleted }
+        }
     }
 
     /// Get the parent chain from root to the given node (excluding the node itself)
@@ -365,13 +378,49 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Toggle the completion status of a task node
     func toggleTaskStatus(_ node: Node) {
-        
+
         guard let dataManager = dataManager else {
             logger.error("❌ No dataManager available", category: "TreeViewModel")
             return
         }
-        
-        
+
+        // If we're completing a task and hiding completed tasks, find the next selection
+        let wasIncomplete = node.taskData?.status != "done" && node.taskData?.status != "completed"
+        var nextSelectionId: String? = nil
+
+        if wasIncomplete && !showCompletedTasks && selectedNodeId == node.id {
+            // Task will be completed and hidden, need to move selection
+            // Get unfiltered siblings to find neighbors before the task disappears
+            let siblings: [Node]
+            if let parentId = node.parentId {
+                siblings = (nodeChildren[parentId] ?? []).sorted { $0.sortOrder < $1.sortOrder }
+            } else {
+                siblings = allNodes.filter { $0.parentId == nil || $0.parentId == "" }
+                    .sorted { $0.sortOrder < $1.sortOrder }
+            }
+
+            if let currentIndex = siblings.firstIndex(where: { $0.id == node.id }) {
+                // Try to select next visible (non-completed) sibling
+                var found = false
+                for i in (currentIndex + 1)..<siblings.count {
+                    if !siblings[i].isCompleted {
+                        nextSelectionId = siblings[i].id
+                        found = true
+                        break
+                    }
+                }
+                // If no next, try previous visible sibling
+                if !found && currentIndex > 0 {
+                    for i in (0..<currentIndex).reversed() {
+                        if !siblings[i].isCompleted {
+                            nextSelectionId = siblings[i].id
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
         Task {
             // Update backend - the DataManager subscription will handle the UI update
             if let updatedNode = await dataManager.toggleNodeCompletion(node) {
@@ -386,6 +435,11 @@ public class TreeViewModel: ObservableObject, Identifiable {
                             nodeChildren[parentId] = updatedChildren
                             logger.log("✅ Updated node in smart folder results", category: "TreeViewModel")
                         }
+                    }
+
+                    // Move selection if the completed task will be hidden
+                    if let newSelection = nextSelectionId, updatedNode.isCompleted && !showCompletedTasks {
+                        selectedNodeId = newSelection
                     }
                 }
             } else {

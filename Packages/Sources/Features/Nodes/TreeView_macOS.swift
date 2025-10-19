@@ -893,7 +893,14 @@ public struct TreeToolbar: ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             HStack(spacing: 8) {
                 NetworkStatusIndicator(lastSyncDate: dataManager.lastSyncDate)
-                
+
+                Button(action: {
+                    viewModel.showCompletedTasks.toggle()
+                }) {
+                    Image(systemName: viewModel.showCompletedTasks ? "eye" : "eye.slash")
+                }
+                .help(viewModel.showCompletedTasks ? "Hide completed tasks" : "Show completed tasks")
+
                 Button(action: {
                     Task {
                         await viewModel.refreshNodes()

@@ -104,7 +104,7 @@ public extension TaskData {
     ) -> TaskData {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
+
         return TaskData(
             description: self.description,
             status: status ?? self.status,
@@ -114,5 +114,14 @@ public extension TaskData {
             completedAt: completedAt != nil ? formatter.string(from: completedAt!) : nil,
             archived: self.archived
         )
+    }
+}
+
+// Node helper extensions
+public extension Node {
+    /// Check if this task node is completed based on its status
+    var isCompleted: Bool {
+        guard nodeType == "task" else { return false }
+        return taskData?.status == "done" || taskData?.status == "completed"
     }
 }
