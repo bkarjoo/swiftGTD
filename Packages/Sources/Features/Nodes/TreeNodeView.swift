@@ -598,14 +598,14 @@ public struct TreeNodeView: View {
             Image(systemName: hasChildren ? (isExpanded ? "chevron.down" : "chevron.right") : "circle")
                 .font(.system(size: fontSize * 0.7))  // Chevron icon scales with font size
                 .foregroundColor(hasChildren ? .primary : .clear)
+                .frame(width: fontSize + 8, height: fontSize + 8)  // Label defines hit area on macOS
+                .contentShape(Rectangle())
         }
-        #if os(macOS)
+#if os(macOS)
         .buttonStyle(BorderlessButtonStyle())
-        #else
+#else
         .buttonStyle(PlainButtonStyle())
-        #endif
-        .frame(width: fontSize + 8, height: fontSize + 8)  // Button frame defines the clickable area
-        .contentShape(Rectangle())
+#endif
         .disabled(!hasChildren)
         .accessibilityLabel(hasChildren ? (isExpanded ? "Collapse" : "Expand") : "")
         .accessibilityHint(hasChildren ? "Double tap to \(isExpanded ? "collapse" : "expand") \(node.title)" : "")
