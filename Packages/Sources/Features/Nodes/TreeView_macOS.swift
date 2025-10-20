@@ -79,6 +79,14 @@ public struct TreeView_macOS: View {
         } message: {
             Text(viewModel.dropAlertMessage)
         }
+        .alert("No Default Folder", isPresented: $viewModel.showingNoDefaultFolderAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Please set a default folder in Settings before using Quick Add (Q key).")
+        }
+        .sheet(isPresented: $viewModel.showingQuickAddSuccessAlert) {
+            SuccessAlertSheet(message: viewModel.quickAddSuccessMessage)
+        }
         .task {
             viewModel.setDataManager(dataManager)
             await viewModel.initialLoad()
@@ -1113,8 +1121,31 @@ public struct CreateNodeSheet: View {
 
         isSubmitting = true
         Task {
-            // Use createNodeParentId if set (for quick add), otherwise use focusedNodeId
-            let parentId = viewModel.createNodeParentId ?? viewModel.focusedNodeId
+            // Determine parent ID based on selection and expanded state
+            let parentId: String?
+
+            if let explicitParentId = viewModel.createNodeParentId {
+                // Use explicit parent ID if set (e.g., for quick add via Q key)
+                parentId = explicitParentId
+            } else if let selectedId = viewModel.selectedNodeId {
+                // Check if the selected node is expanded
+                if viewModel.expandedNodes.contains(selectedId) {
+                    // Node is expanded → new node becomes a child
+                    parentId = selectedId
+                } else {
+                    // Node is collapsed → new node becomes a sibling
+                    // Find the selected node's parent
+                    if let selectedNode = viewModel.allNodes.first(where: { $0.id == selectedId }) {
+                        parentId = selectedNode.parentId
+                    } else {
+                        parentId = nil
+                    }
+                }
+            } else {
+                // No selection → create at root level
+                parentId = nil
+            }
+
             await viewModel.createNode(
                 type: viewModel.createNodeType,
                 title: viewModel.createNodeTitle,
@@ -1123,6 +1154,59 @@ public struct CreateNodeSheet: View {
             // Clear the createNodeParentId after use
             viewModel.createNodeParentId = nil
             dismiss()
+        }
+    }
+}
+
+public struct SuccessAlertSheet: View {
+    let message: String
+    @Environment(\.dismiss) var dismiss
+    @State private var keyEventMonitor: Any?
+    @State private var shouldDismiss = false
+
+    public var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.green)
+
+            Text("Task Added")
+                .font(.headline)
+
+            Text(message)
+                .font(.body)
+                .multilineTextAlignment(.center)
+
+            Button("OK") {
+                dismiss()
+            }
+            .keyboardShortcut(.return)
+        }
+        .padding(30)
+        .frame(minWidth: 300)
+        .onAppear {
+            // Monitor for Enter/Return/Escape keys
+            keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 53 {
+                    // 36 = Return, 76 = Enter, 53 = Escape
+                    DispatchQueue.main.async {
+                        shouldDismiss = true
+                    }
+                    return nil
+                }
+                return event
+            }
+        }
+        .onChange(of: shouldDismiss) { newValue in
+            if newValue {
+                dismiss()
+            }
+        }
+        .onDisappear {
+            if let monitor = keyEventMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyEventMonitor = nil
+            }
         }
     }
 }

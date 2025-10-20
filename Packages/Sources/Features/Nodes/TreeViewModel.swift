@@ -49,6 +49,15 @@ public class TreeViewModel: ObservableObject, Identifiable {
     @Published var showingDropAlert = false
     @Published var dropAlertMessage = ""
 
+    // Default folder alert
+    @Published var showingNoDefaultFolderAlert = false
+
+    // Quick add success alert
+    @Published var showingQuickAddSuccessAlert = false
+    @Published var quickAddSuccessMessage = ""
+    private var isQuickAddOperation = false
+    private var quickAddFolderName = ""
+
     var dataManager: DataManager?
     private var cancellables = Set<AnyCancellable>()
     private var didLoad = false
@@ -757,20 +766,31 @@ public class TreeViewModel: ObservableObject, Identifiable {
             tags: []
         ) {
 
-            // The DataManager subscription will update allNodes and nodeChildren automatically
-            // We only need to expand the parent if needed
-            // Ensure parent's children are consistent
-            if let parentId = createdNode.parentId {
-                await dataManager.refreshNode(parentId)
-                // DataManager handles error recovery by preserving consistency
+            // Check if this was a quick add operation
+            if self.isQuickAddOperation {
+                // Show success alert - NO other side effects at all
+                await MainActor.run {
+                    self.quickAddSuccessMessage = "\"\(createdNode.title)\" added to \"\(self.quickAddFolderName)\""
+                    self.showingQuickAddSuccessAlert = true
+
+                    // Reset the flag
+                    self.isQuickAddOperation = false
+                    self.quickAddFolderName = ""
+
+                    logger.log("✅ Quick add success: \(createdNode.title) → \(self.quickAddFolderName)", category: "TreeViewModel")
+                }
+            } else {
+                // Regular node creation - refresh parent and expand to show the new node
+                if let parentId = createdNode.parentId {
+                    await dataManager.refreshNode(parentId)
+
+                    await MainActor.run {
+                        self.expandedNodes.insert(parentId)
+                    }
+                }
             }
 
             await MainActor.run {
-                if let parentId = createdNode.parentId {
-                    // Expand parent to show the new node
-                    self.expandedNodes.insert(parentId)
-                }
-
                 #if DEBUG
                 // Validate data consistency
                 self.validateNodeConsistency()
@@ -778,6 +798,14 @@ public class TreeViewModel: ObservableObject, Identifiable {
             }
         } else {
             logger.log("❌ Failed to create node", category: "TreeViewModel")
+
+            // Reset quick add flag on failure too
+            if self.isQuickAddOperation {
+                await MainActor.run {
+                    self.isQuickAddOperation = false
+                    self.quickAddFolderName = ""
+                }
+            }
         }
     }
 
@@ -917,12 +945,17 @@ public class TreeViewModel: ObservableObject, Identifiable {
             return true
 
         case 12: // Q - Quick add to default folder (only without Command modifier)
+            logger.log("  🔍 Case 12: Q key - Quick add to default folder", category: "KEYBOARD-VM")
             if !modifiers.contains(.command) {
-                Task {
+                logger.log("    ✅ No Command modifier - creating quick task", category: "KEYBOARD-VM")
+                Task { @MainActor in
+                    logger.log("    🔵 Task started for quick task", category: "KEYBOARD-VM")
                     await createQuickTaskInDefaultFolder()
+                    logger.log("    🟢 Task completed for quick task", category: "KEYBOARD-VM")
                 }
                 return true
             }
+            logger.log("    ❌ Has Command modifier - ignoring (Cmd+Q is system Quit)", category: "KEYBOARD-VM")
             // Cmd+Q is reserved for system Quit
 
         case 36: // Enter - Edit or activate
@@ -1415,6 +1448,7 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
     /// Create a quick task in the default folder
     func createQuickTaskInDefaultFolder() async {
+        logger.log("🚀 createQuickTaskInDefaultFolder() called", category: "TreeViewModel")
 
         guard let dataManager = dataManager else {
             logger.error("❌ No DataManager available", category: "TreeViewModel")
@@ -1424,25 +1458,33 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Get the default folder ID
         guard let defaultNodeId = await dataManager.getDefaultFolder() else {
             logger.log("⚠️ No default folder set", category: "TreeViewModel", level: .warning)
-            // Could show an alert here
+            await MainActor.run {
+                showingNoDefaultFolderAlert = true
+            }
             return
         }
 
-        // Create a quick task in the default folder
-        let taskTitle = "New Task \(Date().formatted(date: .abbreviated, time: .omitted))"
-        if let newNode = await dataManager.createNode(
-            title: taskTitle,
-            type: "task",
-            parentId: defaultNodeId
-        ) {
+        logger.log("✅ Default folder ID: \(defaultNodeId)", category: "TreeViewModel")
 
-            // Batch UI updates: expand and select
-            batchUI {
-                var expanded = expandedNodes
-                expanded.insert(defaultNodeId)
-                expandedNodes = expanded
-                selectedNodeId = newNode.id
-            }
+        // Find the default folder node to get its name
+        let defaultFolder = allNodes.first(where: { $0.id == defaultNodeId })
+        let folderName = defaultFolder?.title ?? "default folder"
+
+        // Show create dialog - nothing else
+        await MainActor.run {
+            // Set up for creating a task in the default folder
+            createNodeType = "task"
+            createNodeTitle = ""
+            createNodeParentId = defaultNodeId
+
+            // Mark this as a quick add operation
+            isQuickAddOperation = true
+            quickAddFolderName = folderName
+
+            // Show the create dialog
+            showingCreateDialog = true
+
+            logger.log("✅ Create dialog shown for default folder: \(folderName)", category: "TreeViewModel")
         }
     }
 
