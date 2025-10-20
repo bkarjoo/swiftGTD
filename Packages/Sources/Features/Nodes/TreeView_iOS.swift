@@ -232,7 +232,14 @@ private struct TreeToolbar: ToolbarContent {
             HStack(spacing: 8) {
                 // Network status indicator
                 NetworkStatusIndicator(lastSyncDate: dataManager.lastSyncDate)
-                
+
+                // Toggle completed tasks visibility
+                Button(action: {
+                    viewModel.showCompletedTasks.toggle()
+                }) {
+                    Image(systemName: viewModel.showCompletedTasks ? "eye" : "eye.slash")
+                }
+
                 // Refresh button
                 Button(action: {
                     Task {
