@@ -28,7 +28,7 @@ public struct TreeView_macOS: View {
     public var body: some View {
         GeometryReader { geometry in
             let windowWidth = geometry.size.width
-            let shouldShowSplitPane = enableSplitPane && windowWidth >= splitPaneThreshold && viewModel.selectedNodeId != nil
+            let shouldShowSplitPane = enableSplitPane && windowWidth >= splitPaneThreshold
 
             if shouldShowSplitPane {
                 // Split pane mode
