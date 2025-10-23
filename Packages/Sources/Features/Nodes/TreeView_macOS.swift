@@ -13,7 +13,7 @@ public struct TreeView_macOS: View {
     @EnvironmentObject var dataManager: DataManager
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
-    @AppStorage("splitPaneThreshold") private var splitPaneThreshold = 900.0
+    @AppStorage("splitPaneThreshold") private var splitPaneThreshold = 1200.0
     @AppStorage("splitPanePosition") private var splitPanePosition = 0.4 // 40% for left pane
     @AppStorage("enableSplitPane") private var enableSplitPane = true
 
