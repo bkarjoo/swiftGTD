@@ -14,11 +14,11 @@ public struct TreeView_macOS: View {
     @AppStorage("treeFontSize") private var treeFontSize = 14
     @AppStorage("treeLineSpacing") private var treeLineSpacing = 4
     @AppStorage("splitPaneThreshold") private var splitPaneThreshold = 1200.0
-    @AppStorage("splitPanePosition") private var splitPanePosition = 0.4 // 40% for left pane
+    @AppStorage("splitPanePosition") private var splitPanePosition = 0.5 // 50% for left pane
     @AppStorage("enableSplitPane") private var enableSplitPane = true
 
     @State private var showingSplitPane = false
-    @State private var dividerPosition: CGFloat = 0.4
+    @State private var dividerPosition: CGFloat = 0.5
     @State private var isDraggingDivider = false
 
     public init(viewModel: TreeViewModel? = nil) {
@@ -115,17 +115,17 @@ public struct TreeView_macOS: View {
                                 NSCursor.pop()
                             }
                         }
-                )
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            let newPosition = (dividerPosition * windowWidth + value.translation.width) / windowWidth
-                            dividerPosition = min(max(0.2, newPosition), 0.8) // Keep between 20% and 80%
-                            splitPanePosition = dividerPosition
-                        }
-                        .onEnded { _ in
-                            isDraggingDivider = false
-                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let newPosition = (dividerPosition * windowWidth + value.translation.width) / windowWidth
+                                    dividerPosition = min(max(0.2, newPosition), 0.8) // Keep between 20% and 80%
+                                    splitPanePosition = dividerPosition
+                                }
+                                .onEnded { _ in
+                                    isDraggingDivider = false
+                                }
+                        )
                 )
 
             // Right pane - Details/Editor
