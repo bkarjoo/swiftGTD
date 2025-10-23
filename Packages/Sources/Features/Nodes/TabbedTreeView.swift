@@ -95,6 +95,7 @@ public struct TabbedTreeView: View {
     @State private var hasRestoredState = false
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var activeTabSubscription: AnyCancellable?
+    @State private var window: NSWindow?
     private let stateManager = UIStateManager.shared
     private let logger = Logger.shared
 
@@ -118,6 +119,7 @@ public struct TabbedTreeView: View {
                     }
                 }
         }
+        .background(WindowAccessor(window: $window))
         .onAppear {
             if !hasRestoredState {
                 restoreState()
@@ -309,6 +311,14 @@ public struct TabbedTreeView: View {
         }
 
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // MULTI-WINDOW FIX: Only process events for this window
+            // Each window has its own TabbedTreeView and keyboard monitor
+            // Without this check, all monitors receive all events from all windows
+            if let eventWindow = event.window, let ourWindow = self.window, eventWindow !== ourWindow {
+                // Event is for a different window, ignore it
+                return event
+            }
+
             // ATTEMPT 8: Add diagnostic logging
             logger.log("🔵 MONITOR ALIVE: Received keyDown event", category: "KEYBOARD-MONITOR")
 
@@ -865,6 +875,30 @@ struct TabDropDelegate: DropDelegate {
         draggedTab = nil
         onTabChange() // Save the new tab order
         return true
+    }
+}
+
+// MARK: - Window Accessor Helper
+
+/// Helper view to capture the NSWindow reference from SwiftUI
+/// This is needed for multi-window keyboard event routing
+private struct WindowAccessor: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            self.window = view.window
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if window == nil {
+            DispatchQueue.main.async {
+                self.window = nsView.window
+            }
+        }
     }
 }
 
