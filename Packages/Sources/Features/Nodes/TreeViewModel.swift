@@ -909,11 +909,13 @@ public class TreeViewModel: ObservableObject, Identifiable {
         // Handle non-command shortcuts
         logger.log("📌 Checking non-command shortcuts", category: "KEYBOARD-VM")
         switch keyCode {
-        case 3: // F - unfocus (when no command modifier)
-            if !modifiers.contains(.command) {
-                setFocusedNode(nil)
-                return true
-            }
+        case 3: // F - Create folder
+            logger.log("  🔍 Case 3: F key - Create folder", category: "KEYBOARD-VM")
+            createNodeType = "folder"
+            createNodeTitle = ""
+            createNodeParentId = nil
+            showingCreateDialog = true
+            return true
 
         case 17: // T - Create task
             logger.log("  🔍 Case 17: T key", category: "KEYBOARD-VM")
@@ -1239,16 +1241,12 @@ public class TreeViewModel: ObservableObject, Identifiable {
 
         default:
             // Normal folder/task behavior
-            let children = getChildren(of: nodeId)
-
-            if !children.isEmpty {
-                if !expandedNodes.contains(nodeId) {
-                    // First click: Expand if collapsed and has children
-                    expandNode(nodeId)
-                } else {
-                    // Second click: Focus on the node (enter focus mode)
-                    setFocusedNode(nodeId)
-                }
+            if !expandedNodes.contains(nodeId) {
+                // First right arrow: Expand the node
+                expandNode(nodeId)
+            } else {
+                // Second right arrow: Focus on the node (enter focus mode)
+                setFocusedNode(nodeId)
             }
         }
     }
